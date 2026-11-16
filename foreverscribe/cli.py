@@ -478,13 +478,15 @@ COMMANDS = {
 }
 
 # Commands that don't read the telemetry store (setup, transport, agent integrations, game data).
-TOOLS = ("setup", "pair", "receiver", "doctor", "config", "mcp", "ah", "wowhead", "gear", "rate", "craft", "aca", "page", "version")
+TOOLS = ("setup", "pair", "receiver", "doctor", "config", "mcp", "ah", "wowhead", "gear", "rate", "craft", "aca", "page", "version",
+         "way")
 WOWHEAD_ALIASES = ("gear", "rate", "craft", "aca", "page")
 
 
 EPILOG = """more commands:
   setup | pair | receiver [run|health|launchagent] | doctor | config [path|show]   setup and transport
   mcp                                   stdio MCP server for Claude / Codex / Hermes / any MCP client
+  way <npc|object|x y zone>             where it is + the chat command that pins it with an arrow
   gear | rate <ids> | craft <ids> | aca | page <path>   Wowhead Forever, judged for the character
   wowhead <item|npc|quest|zone|spell|vendor|import-page|weights> ...   (see `foreverscribe wowhead`)
   ah <item> [...]                       auction-house prices (off unless enabled in config)
@@ -555,6 +557,9 @@ def run_tool(argv):
     if cmd in ("wowhead",) + WOWHEAD_ALIASES:
         from . import wowhead
         return wowhead.main(rest if cmd == "wowhead" else [cmd] + rest) or 0
+    if cmd == "way":
+        from . import waypoints
+        return waypoints.main(rest)
     if cmd == "mcp":
         from . import mcp_server
         return mcp_server.main(rest)

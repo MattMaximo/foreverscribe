@@ -72,7 +72,7 @@ Claude Code, Codex, Hermes, and notes for ChatGPT / claude.ai.
 - **WARM** — focused commands on demand: `equipment`, `inventory`, `professions --recipes`, `reputation`, `talents`,
   `quest <id|name>`, `mail`, `auctions`, `vendor [npc]`, `currencies`, `history <timeframe>`, `achievements`,
   `explored`, `collections`, `stats`, `lockouts`, `dungeons`, `compare <item>`, plus Wowhead-backed `gear`, `rate`,
-  `craft`, `wowhead …`, and optional AH prices `ah <item>`.
+  `craft`, `wowhead …`, `way <npc|place>` (where it is + a paste-in-chat waypoint), and optional AH prices `ah <item>`.
 - **COLD** — `cold addons | keybinds | actionbars | macros`: only when the user asks.
 
 ## Safety (read-only by design)
@@ -83,6 +83,14 @@ and never calls `ReloadUI`. The **only** chat event it listens to is `CHAT_MSG_S
 client's own auction-outcome format strings (`ERR_AUCTION_SOLD_S` and friends, in your client's language) are kept
 as *kind + item name*; every other line is dropped unread. Player names from mail, auctions or invoices are never
 stored, and macro bodies are never read. See [`docs/CAPTURE-MATRIX.md`](docs/CAPTURE-MATRIX.md) for every API used.
+
+## Waypoints ("where is the Stormwind First Aid trainer?")
+
+`foreverscribe way first aid trainer stormwind` (MCP `waypoint`) finds it on Wowhead Forever and prints one command
+to paste in chat, matched to your addons: `/scribe way 52.8 44.8 Stormwind City Shaina Fuller` sets Forever's own map
+pin and arrow (and hands it to Polestar's or TomTom's arrow if you use one). Without ForeverScribe 0.4 in game it
+prints the TomTom, Polestar or plain-Forever `/run` equivalent. The only thing the addon does here is set the map pin
+you asked for. Sources and the Stormwind/Mulgore map-redraw fix: [`docs/WAYPOINTS.md`](docs/WAYPOINTS.md).
 
 ## Optional extras
 

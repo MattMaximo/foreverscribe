@@ -519,7 +519,7 @@ C_TradeSkillUI.GetRecipeCooldown = function(rid) local c = W.recipeCooldowns[rid
 -- Addon loading -----------------------------------------------------------
 W.ROOT = W.ROOT or "./"
 W.ADDONS = {
-	ForeverScribe = { "Util.lua", "Defaults.lua", "Collect.lua", "Core.lua" },
+	ForeverScribe = { "Util.lua", "Defaults.lua", "Collect.lua", "Core.lua", "Waypoint.lua" },
 	ForeverScribe_Live = { "Codec.lua", "Live.lua" },
 }
 function W.LoadAddonFiles(name)
@@ -623,6 +623,7 @@ end
 do -- v0.3 additions live next to this file
 	local here = (debug.getinfo(1, "S").source or ""):match("^@(.*/)") or "tests/lua/"
 	dofile(here .. "wow_stub_v3.lua")
+	dofile(here .. "wow_stub_way.lua")
 end
 
 return W

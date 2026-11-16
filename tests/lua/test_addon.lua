@@ -695,7 +695,7 @@ test("v3 reminder default comes from the installer's Defaults.lua", function()
 end)
 
 test("v3 addon source never calls ReloadUI, protected AH or buy/sell functions", function()
-	for _, f in ipairs({ "Util.lua", "Defaults.lua", "Collect.lua", "Core.lua" }) do
+	for _, f in ipairs({ "Util.lua", "Defaults.lua", "Collect.lua", "Core.lua", "Waypoint.lua" }) do
 		local fh = assert(io.open(ROOT .. "addon/ForeverScribe/" .. f)); local src = fh:read("*a"); fh:close()
 		src = src:gsub("%-%-[^\n]*", "") -- comments may mention them
 		for _, bad in ipairs({ "ReloadUI", "QueryOwnedAuctions", "PostItem", "PostCommodity", "PlaceBid", "BuyMerchantItem",
@@ -778,6 +778,108 @@ test("v2 size bound: SavedVariables stays bounded at the caps", function()
 end)
 
 -- Fixture generation for the Python companion tests --------------------------
+-- v0.4 waypoints -------------------------------------------------------------
+local function lastChat() return W.chat[#W.chat] or "" end
+local function near(a, b, msg) if math.abs(a - b) > 1e-9 then error((msg or "") .. " expected " .. b .. " got " .. tostring(a), 2) end end
+
+test("way: native pin + arrow from x y zone title, case kept", function()
+	W.Boot()
+	ForeverScribe.Slash("way 52.8 44.8 Stormwind City Shaina Fuller")
+	eq(W.waypoint.map, 1453, "zone resolved to the zone, not the same-named micro map"); near(W.waypoint.x, 0.528); near(W.waypoint.y, 0.448)
+	eq(W.superTracked, true, "arrow on")
+	truthy(lastChat():find("Stormwind City 52.8, 44.8 (Shaina Fuller)", 1, true), lastChat())
+	eq(FS and 0 or 0, 0); eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("way: /fs alias, map id, TomTom order, #id, comma coords, current map", function()
+	W.Boot()
+	eq(SLASH_FOREVERSCRIBE3, "/fs")
+	SlashCmdList.FOREVERSCRIBE("way 42.1 65.3 1429 Marshal Dughan"); eq(W.waypoint.map, 1429); near(W.waypoint.x, 0.421)
+	SlashCmdList.FOREVERSCRIBE("way Elwynn Forest 30 40 Goldshire"); eq(W.waypoint.map, 1429); near(W.waypoint.y, 0.40)
+	SlashCmdList.FOREVERSCRIBE("way #1437 10.5 20.5"); eq(W.waypoint.map, 1437)
+	SlashCmdList.FOREVERSCRIBE("way 1436 50 60"); eq(W.waypoint.map, 1436, "bare map id first")
+	SlashCmdList.FOREVERSCRIBE("way 45,5 61,5 barrens"); eq(W.waypoint.map, 1413, "prefix + decimal commas"); near(W.waypoint.x, 0.455)
+	SlashCmdList.FOREVERSCRIBE("way 45.2, 61.8 wetl"); eq(W.waypoint.map, 1437); near(W.waypoint.y, 0.618)
+	SlashCmdList.FOREVERSCRIBE("way 12 34"); eq(W.waypoint.map, 1432, "no zone: the player's map")
+	SlashCmdList.FOREVERSCRIBE("WAY 12 34 Loch Modan"); eq(W.waypoint.map, 1432)
+end)
+
+test("way: validation refuses bad input and sets nothing", function()
+	W.Boot()
+	for _, bad in ipairs({ "way 101 20 Elwynn Forest", "way -5 20 Elwynn Forest", "way abc def", "way 50", "way Narnia 10 10", "way 10 10 1" }) do
+		W.waypoint = nil
+		ForeverScribe.Slash(bad)
+		if bad ~= "way 10 10 1" then eq(W.waypoint, nil, bad) end
+	end
+	W.waypoint = nil
+	ForeverScribe.Slash("way stormwind 10 10"); eq(W.waypoint.map, 1453, "unique prefix wins")
+	W.waypoint = nil
+	ForeverScribe.Slash("way Stormw 10 10"); eq(W.waypoint.map, 1453)
+	W.noPins[1458] = true; W.waypoint = nil
+	ForeverScribe.Slash("way 50 50 Undercity"); eq(W.waypoint, nil, "map without pins"); truthy(lastChat():find("does not take map pins", 1, true))
+	W.pinRule = true
+	ForeverScribe.Slash("way 50 50 Elwynn Forest"); eq(W.waypoint, nil, "game rule off"); truthy(lastChat():find("turned off", 1, true), lastChat())
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("way: clear, help, status of arrow addons", function()
+	W.Boot()
+	ForeverScribe.Slash("way 50 50 Westfall"); truthy(W.waypoint)
+	ForeverScribe.Slash("way clear"); eq(W.waypoint, nil); eq(W.superTracked, false)
+	ForeverScribe.Slash("way"); truthy(lastChat():find("game's own arrow", 1, true), lastChat())
+end)
+
+test("way: Polestar loaded -> its Nav API arrow, game pin kept without a second arrow", function()
+	W.Boot(); W.FakePolestar()
+	ForeverScribe.Slash("way 52.8 44.8 Stormwind City Shaina Fuller")
+	local t = W.polestar.target
+	eq(t.owner, "ForeverScribe"); eq(t.map, 1453); near(t.x, 0.528); near(t.y, 0.448); eq(t.title, "Shaina Fuller")
+	eq(W.waypoint.map, 1453, "map pin still set"); eq(W.superTracked, false, "one arrow: Polestar's")
+	truthy(lastChat():find("arrow: Polestar", 1, true), lastChat())
+	ForeverScribe.Slash("way clear"); eq(W.polestar.target, nil, "Polestar target released")
+	-- a Polestar table without the loaded addon (or a different API version) is ignored
+	W.loadedByName.Polestar = false
+	ForeverScribe.Slash("way 10 10 Westfall"); eq(W.polestar.target, nil); eq(W.superTracked, true)
+	W.loadedByName.Polestar = true; Polestar.Nav.API.version = 2
+	ForeverScribe.Slash("way 10 10 Westfall"); eq(W.polestar.target, nil, "unknown API version not called")
+end)
+
+test("way: TomTom loaded -> one TomTom waypoint, replaced each time; native mode skips it", function()
+	W.Boot(); W.FakeTomTom()
+	ForeverScribe.Slash("way 30 40 Elwynn Forest Goldshire")
+	eq(W.TomTomCount(), 1); local uid = next(W.tomtom.list)
+	eq(uid[1], 1429); near(uid[2], 0.30); near(uid[3], 0.40); eq(uid.title, "Goldshire"); eq(uid.from, "ForeverScribe")
+	ForeverScribe.Slash("way 31 41 Elwynn Forest"); eq(W.TomTomCount(), 1, "previous ForeverScribe waypoint removed")
+	eq(W.superTracked, false)
+	ForeverScribe.Slash("way addon native"); eq(ForeverScribeDB.settings.wayAddon, "native")
+	ForeverScribe.Slash("way 32 42 Elwynn Forest"); eq(W.tomtom.n, 2, "native mode: TomTom not called"); eq(W.superTracked, true)
+	ForeverScribe.Slash("way addon auto"); eq(ForeverScribeDB.settings.wayAddon, nil)
+	-- Polestar's TomTom stand-in (global without the TomTom addon loaded) is not treated as TomTom
+	W.loadedByName.TomTom = false
+	ForeverScribe.Slash("way 33 43 Elwynn Forest"); eq(W.tomtom.n, 2)
+end)
+
+test("way: missing APIs degrade to a message, never an error", function()
+	W.Boot()
+	C_SuperTrack, UiMapPoint, C_Map.GetMapChildrenInfo, C_Map.CanSetUserWaypointOnMap = nil, nil, nil, nil
+	ForeverScribe.Way = ForeverScribe.Way -- module already loaded
+	ForeverScribe.Slash("way 50 50 1429")
+	eq(W.waypoint.map, 1429, "falls back to a plain UiMapPoint table")
+	C_Map.SetUserWaypoint = nil
+	ForeverScribe.Slash("way 50 50 1429"); truthy(lastChat():find("could not set", 1, true), lastChat())
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("way: source makes no protected or movement calls", function()
+	local fh = assert(io.open(ROOT .. "addon/ForeverScribe/Waypoint.lua")); local src = fh:read("*a"); fh:close()
+	src = src:gsub("%-%-[^\n]*", "")
+	for _, bad in ipairs({ "MoveForward", "TurnLeft", "InteractUnit", "CastSpell", "RunScript", "loadstring", "TargetUnit",
+		"SetCVar", "ClickPosition", "CameraOrSelectOrMove", "SendChatMessage", "ReloadUI" }) do
+		truthy(not src:find(bad, 1, true), "Waypoint.lua uses " .. bad)
+	end
+end)
+
+
 if FIXTURES then
 	dofile(ROOT .. "tests/lua/wow_stub.lua")
 	W.Reset(); W.ROOT = ROOT

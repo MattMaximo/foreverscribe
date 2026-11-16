@@ -37,7 +37,7 @@ The sync agent runs as a per-user scheduled task ("ForeverScribe Sync", at logon
 2. At character select → AddOns, make sure **ForeverScribe** is enabled.
 3. Log in, type `/scribe status`, then `/reload`. Your agent sees it within a minute.
 
-In-game commands: `/scribe status | last [n] | snapshot | errors | remind <min>|off | played on|off | live on|off`.
+In-game commands (`/scribe` or `/fs`): `status | last [n] | snapshot | errors | remind <min>|off | played on|off | live on|off | way <x> <y> [zone] [title]` (map pin + arrow; `way clear`).
 
 ## What it touches
 

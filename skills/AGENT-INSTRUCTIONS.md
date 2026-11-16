@@ -17,9 +17,21 @@ same names as `foreverscribe <command>`.
    - quests / leveling: `quest <id|name>` (always check before recommending one), `wowhead page quests/...`
    - money: `auctions`, `mail`, `currencies`, `ah_price` (off unless they enabled it)
    - progress: `reputation`, `talents`, `achievements`, `explored`, `collections`, `history`, `dungeons`, `lockouts`
+   - "where is X": `waypoint` (name + optional zone words, npc=<id>, or "x y zone") — see below
 3. `cold` (addons, keybinds, action bars, macro names) only when they ask about their UI setup.
 4. If a `wowhead` tool answers `NEED web_extract(...)`: fetch that URL as markdown with your web tool, give it to
    `import_page`, then call the `wowhead` tool again.
+
+## "Where is X?"
+
+Call `waypoint`. Reply with: name, zone and coordinates; source + freshness in a few words ("Wowhead Forever,
+fetched today"); then the paste command alone in a code block, exactly as printed (it is already the right syntax for
+their addons). Then other spawn spots / other matches in one line each. If the tool finds no position, say so and
+stop: never invent, estimate or copy coordinates from Classic/Retail sources.
+
+```
+/scribe way 52.8 44.8 Stormwind City Shaina Fuller
+```
 
 ## Rules
 

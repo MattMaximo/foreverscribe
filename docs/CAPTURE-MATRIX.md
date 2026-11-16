@@ -113,3 +113,12 @@ zones 250, mounts/pets/toys 1000 each, currencies 200, quest titles 3000, mail 5
 | Macro names | `GetNumMacros`, `GetMacroInfo` (ui: MacroUI) — name only | login + UPDATE_MACROS, only when changed | cold `macros {account[], character[]}`; macro text is never stored |
 | Save reminder | `C_Timer.After`, `InCombatLockdown` | every 60 s check, off by default | prints one chat-frame line after N minutes without a save; never calls ReloadUI |
 | Other addons' SavedVariables | (sync agent, not the addon) | every save | files matching `[sync] extra_saved_variables` (default `ForeverForge*.lua`) are shipped and kept raw ("unparsed") until a real sample is inspected |
+
+## v0.4: waypoints (an action the player types, not capture)
+
+| What | API (status) | When | Stored |
+|---|---|---|---|
+| `/scribe way` / `/fs way` map pin + arrow | `C_Map.SetUserWaypoint`, `ClearUserWaypoint`, `CanSetUserWaypointOnMap`, `GetMapInfo`, `GetMapChildrenInfo`, `GetBestMapForUnit`, `C_SuperTrack.SetSuperTrackedUserWaypoint`, `C_GameRules.IsGameRuleActive`, `C_AddOns.IsAddOnLoaded` (all doc); `UiMapPoint.CreateFromCoordinates` (ui: Blizzard_ObjectAPI) | only when the player types the command | nothing except the setting `settings.wayAddon` (`/scribe way addon native`) |
+| Hand-off to other arrows | Polestar `Polestar.Nav.API.Navigate/Cancel` (version 1), TomTom `TomTom:AddWaypoint/RemoveWaypoint` — only when that addon is loaded | same | nothing |
+
+Evidence and paste-command syntaxes: [`WAYPOINTS.md`](WAYPOINTS.md).

@@ -1,0 +1,812 @@
+{
+ "era_build": "1.15.9.70576",
+ "forever_build": "1.60.1.70938",
+ "maps": {
+  "1411": {
+   "area": 14,
+   "bounds": [
+    -1716.667,
+    -7250.0,
+    1808.333,
+    -1962.5
+   ],
+   "continent_map": 1,
+   "name": "Durotar",
+   "parent": 1414,
+   "type": 3
+  },
+  "1412": {
+   "area": 215,
+   "bounds": [
+    -3835.416,
+    -3675.0,
+    266.666,
+    2479.167
+   ],
+   "continent_map": 1,
+   "era_bounds": [
+    -3697.917,
+    -3089.583,
+    -272.917,
+    2047.917
+   ],
+   "name": "Mulgore",
+   "parent": 1414,
+   "type": 3
+  },
+  "1413": {
+   "area": 17,
+   "bounds": [
+    -5143.75,
+    -7510.417,
+    1612.5,
+    2622.917
+   ],
+   "continent_map": 1,
+   "name": "The Barrens",
+   "parent": 1414,
+   "type": 3
+  },
+  "1414": {
+   "area": 0,
+   "bounds": [
+    -11733.3,
+    -19733.211,
+    12799.9,
+    17066.6
+   ],
+   "continent_map": 1,
+   "name": "Kalimdor",
+   "parent": 947,
+   "type": 2
+  },
+  "1415": {
+   "area": 0,
+   "bounds": [
+    -16000.0,
+    -19199.9,
+    7466.6,
+    16000.0
+   ],
+   "continent_map": 0,
+   "name": "Eastern Kingdoms",
+   "parent": 947,
+   "type": 2
+  },
+  "1416": {
+   "area": 36,
+   "bounds": [
+    -366.667,
+    -2016.667,
+    1500.0,
+    783.333
+   ],
+   "continent_map": 0,
+   "name": "Alterac Mountains",
+   "parent": 1415,
+   "type": 3
+  },
+  "1417": {
+   "area": 45,
+   "bounds": [
+    -2533.333,
+    -4466.667,
+    -133.333,
+    -866.667
+   ],
+   "continent_map": 0,
+   "name": "Arathi Highlands",
+   "parent": 1415,
+   "type": 3
+  },
+  "1418": {
+   "area": 3,
+   "bounds": [
+    -7547.917,
+    -4566.667,
+    -5889.583,
+    -2079.167
+   ],
+   "continent_map": 0,
+   "name": "Badlands",
+   "parent": 1415,
+   "type": 3
+  },
+  "1419": {
+   "area": 4,
+   "bounds": [
+    -12800.0,
+    -4591.667,
+    -10566.666,
+    -1241.667
+   ],
+   "continent_map": 0,
+   "name": "Blasted Lands",
+   "parent": 1415,
+   "type": 3
+  },
+  "1420": {
+   "area": 85,
+   "bounds": [
+    825.0,
+    -1485.417,
+    3837.5,
+    3033.333
+   ],
+   "continent_map": 0,
+   "name": "Tirisfal Glades",
+   "parent": 1415,
+   "type": 3
+  },
+  "1421": {
+   "area": 130,
+   "bounds": [
+    -1133.333,
+    -750.0,
+    1666.667,
+    3450.0
+   ],
+   "continent_map": 0,
+   "name": "Silverpine Forest",
+   "parent": 1415,
+   "type": 3
+  },
+  "1422": {
+   "area": 28,
+   "bounds": [
+    500.0,
+    -3883.333,
+    3366.667,
+    416.667
+   ],
+   "continent_map": 0,
+   "name": "Western Plaguelands",
+   "parent": 1415,
+   "type": 3
+  },
+  "1423": {
+   "area": 139,
+   "bounds": [
+    825.0,
+    -6558.334,
+    3691.667,
+    -2256.25
+   ],
+   "continent_map": 0,
+   "era_bounds": [
+    1218.75,
+    -6056.25,
+    3800.0,
+    -2185.417
+   ],
+   "name": "Eastern Plaguelands",
+   "parent": 1415,
+   "type": 3
+  },
+  "1424": {
+   "area": 267,
+   "bounds": [
+    -1733.333,
+    -2133.333,
+    400.0,
+    1066.667
+   ],
+   "continent_map": 0,
+   "name": "Hillsbrad Foothills",
+   "parent": 1415,
+   "type": 3
+  },
+  "1425": {
+   "area": 47,
+   "bounds": [
+    -1100.0,
+    -5425.0,
+    1466.667,
+    -1575.0
+   ],
+   "continent_map": 0,
+   "name": "The Hinterlands",
+   "parent": 1415,
+   "type": 3
+  },
+  "1426": {
+   "area": 1,
+   "bounds": [
+    -7160.417,
+    -3122.917,
+    -3877.083,
+    1802.083
+   ],
+   "continent_map": 0,
+   "name": "Dun Morogh",
+   "parent": 1415,
+   "type": 3
+  },
+  "1427": {
+   "area": 51,
+   "bounds": [
+    -7587.5,
+    -2554.167,
+    -6100.0,
+    -322.917
+   ],
+   "continent_map": 0,
+   "name": "Searing Gorge",
+   "parent": 1415,
+   "type": 3
+  },
+  "1428": {
+   "area": 46,
+   "bounds": [
+    -8983.333,
+    -3195.833,
+    -7031.25,
+    -266.667
+   ],
+   "continent_map": 0,
+   "name": "Burning Steppes",
+   "parent": 1415,
+   "type": 3
+  },
+  "1429": {
+   "area": 12,
+   "bounds": [
+    -10254.166,
+    -1935.417,
+    -7939.583,
+    1535.417
+   ],
+   "continent_map": 0,
+   "name": "Elwynn Forest",
+   "parent": 1415,
+   "type": 3
+  },
+  "1430": {
+   "area": 41,
+   "bounds": [
+    -11533.333,
+    -3333.333,
+    -9866.666,
+    -833.333
+   ],
+   "continent_map": 0,
+   "name": "Deadwind Pass",
+   "parent": 1415,
+   "type": 3
+  },
+  "1431": {
+   "area": 10,
+   "bounds": [
+    -11516.666,
+    -1866.667,
+    -9716.666,
+    833.333
+   ],
+   "continent_map": 0,
+   "name": "Duskwood",
+   "parent": 1415,
+   "type": 3
+  },
+  "1432": {
+   "area": 38,
+   "bounds": [
+    -6327.083,
+    -4752.083,
+    -4487.5,
+    -1993.75
+   ],
+   "continent_map": 0,
+   "name": "Loch Modan",
+   "parent": 1415,
+   "type": 3
+  },
+  "1433": {
+   "area": 44,
+   "bounds": [
+    -10022.916,
+    -3852.084,
+    -8575.0,
+    -1681.25
+   ],
+   "continent_map": 0,
+   "era_bounds": [
+    -10022.916,
+    -3741.667,
+    -8575.0,
+    -1570.833
+   ],
+   "name": "Redridge Mountains",
+   "parent": 1415,
+   "type": 3
+  },
+  "1434": {
+   "area": 33,
+   "bounds": [
+    -15422.916,
+    -4160.417,
+    -11168.75,
+    2220.833
+   ],
+   "continent_map": 0,
+   "name": "Stranglethorn Vale",
+   "parent": 1415,
+   "type": 3
+  },
+  "1435": {
+   "area": 8,
+   "bounds": [
+    -11150.0,
+    -4516.667,
+    -9620.833,
+    -2222.917
+   ],
+   "continent_map": 0,
+   "name": "Swamp of Sorrows",
+   "parent": 1415,
+   "type": 3
+  },
+  "1436": {
+   "area": 40,
+   "bounds": [
+    -11733.333,
+    -483.333,
+    -9400.0,
+    3016.667
+   ],
+   "continent_map": 0,
+   "name": "Westfall",
+   "parent": 1415,
+   "type": 3
+  },
+  "1437": {
+   "area": 11,
+   "bounds": [
+    -4904.167,
+    -4525.0,
+    -2147.917,
+    -389.583
+   ],
+   "continent_map": 0,
+   "name": "Wetlands",
+   "parent": 1415,
+   "type": 3
+  },
+  "1438": {
+   "area": 141,
+   "bounds": [
+    8437.5,
+    -1277.083,
+    11831.25,
+    3814.583
+   ],
+   "continent_map": 1,
+   "name": "Teldrassil",
+   "parent": 1414,
+   "type": 3
+  },
+  "1439": {
+   "area": 148,
+   "bounds": [
+    3966.667,
+    -3608.333,
+    8333.333,
+    2941.667
+   ],
+   "continent_map": 1,
+   "name": "Darkshore",
+   "parent": 1414,
+   "type": 3
+  },
+  "1440": {
+   "area": 331,
+   "bounds": [
+    829.167,
+    -4066.667,
+    4672.917,
+    1700.0
+   ],
+   "continent_map": 1,
+   "name": "Ashenvale",
+   "parent": 1414,
+   "type": 3
+  },
+  "1441": {
+   "area": 400,
+   "bounds": [
+    -6900.0,
+    -4833.333,
+    -3966.667,
+    -433.333
+   ],
+   "continent_map": 1,
+   "name": "Thousand Needles",
+   "parent": 1414,
+   "type": 3
+  },
+  "1442": {
+   "area": 406,
+   "bounds": [
+    -339.583,
+    -1637.5,
+    2916.667,
+    3245.833
+   ],
+   "continent_map": 1,
+   "name": "Stonetalon Mountains",
+   "parent": 1414,
+   "type": 3
+  },
+  "1443": {
+   "area": 405,
+   "bounds": [
+    -2545.833,
+    -262.5,
+    452.083,
+    4233.333
+   ],
+   "continent_map": 1,
+   "name": "Desolace",
+   "parent": 1414,
+   "type": 3
+  },
+  "1444": {
+   "area": 357,
+   "bounds": [
+    -7000.0,
+    -1508.333,
+    -2366.667,
+    5441.667
+   ],
+   "continent_map": 1,
+   "name": "Feralas",
+   "parent": 1414,
+   "type": 3
+  },
+  "1445": {
+   "area": 15,
+   "bounds": [
+    -5533.333,
+    -6225.0,
+    -2033.333,
+    -975.0
+   ],
+   "continent_map": 1,
+   "name": "Dustwallow Marsh",
+   "parent": 1414,
+   "type": 3
+  },
+  "1446": {
+   "area": 440,
+   "bounds": [
+    -10475.0,
+    -7118.75,
+    -5875.0,
+    -218.75
+   ],
+   "continent_map": 1,
+   "name": "Tanaris",
+   "parent": 1414,
+   "type": 3
+  },
+  "1447": {
+   "area": 16,
+   "bounds": [
+    1960.417,
+    -8347.916,
+    5341.667,
+    -3277.083
+   ],
+   "continent_map": 1,
+   "name": "Azshara",
+   "parent": 1414,
+   "type": 3
+  },
+  "1448": {
+   "area": 361,
+   "bounds": [
+    3300.0,
+    -4108.333,
+    7133.333,
+    1641.667
+   ],
+   "continent_map": 1,
+   "name": "Felwood",
+   "parent": 1414,
+   "type": 3
+  },
+  "1449": {
+   "area": 490,
+   "bounds": [
+    -8433.333,
+    -3166.667,
+    -5966.667,
+    533.333
+   ],
+   "continent_map": 1,
+   "name": "Un'Goro Crater",
+   "parent": 1414,
+   "type": 3
+  },
+  "1450": {
+   "area": 493,
+   "bounds": [
+    6952.083,
+    -3689.583,
+    8491.666,
+    -1381.25
+   ],
+   "continent_map": 1,
+   "name": "Moonglade",
+   "parent": 1414,
+   "type": 3
+  },
+  "1451": {
+   "area": 1377,
+   "bounds": [
+    -8281.25,
+    -945.834,
+    -5958.334,
+    2537.5
+   ],
+   "continent_map": 1,
+   "name": "Silithus",
+   "parent": 1414,
+   "type": 3
+  },
+  "1452": {
+   "area": 618,
+   "bounds": [
+    3800.0,
+    -7416.667,
+    8533.333,
+    -316.667
+   ],
+   "continent_map": 1,
+   "name": "Winterspring",
+   "parent": 1414,
+   "type": 3
+  },
+  "1453": {
+   "area": 1519,
+   "bounds": [
+    -9154.17,
+    -14.584,
+    -7995.83,
+    1722.92
+   ],
+   "continent_map": 0,
+   "era_bounds": [
+    -9175.205,
+    36.701,
+    -8278.851,
+    1380.971
+   ],
+   "name": "Stormwind City",
+   "parent": 1415,
+   "type": 3
+  },
+  "1454": {
+   "area": 1637,
+   "bounds": [
+    1338.461,
+    -5083.206,
+    2273.877,
+    -3680.601
+   ],
+   "continent_map": 1,
+   "name": "Orgrimmar",
+   "parent": 1414,
+   "type": 3
+  },
+  "1455": {
+   "area": 1537,
+   "bounds": [
+    -5096.846,
+    -1504.216,
+    -4569.241,
+    -713.591
+   ],
+   "continent_map": 0,
+   "name": "Ironforge",
+   "parent": 1415,
+   "type": 3
+  },
+  "1456": {
+   "area": 1638,
+   "bounds": [
+    -1545.833,
+    -527.083,
+    -850.0,
+    516.667
+   ],
+   "continent_map": 1,
+   "name": "Thunder Bluff",
+   "parent": 1414,
+   "type": 3
+  },
+  "1457": {
+   "area": 1657,
+   "bounds": [
+    9532.587,
+    1880.03,
+    10238.316,
+    2938.363
+   ],
+   "continent_map": 1,
+   "name": "Darnassus",
+   "parent": 1414,
+   "type": 3
+  },
+  "1458": {
+   "area": 1497,
+   "bounds": [
+    1237.841,
+    -86.182,
+    1877.945,
+    873.193
+   ],
+   "continent_map": 0,
+   "name": "Undercity",
+   "parent": 1415,
+   "type": 3
+  },
+  "1459": {
+   "area": 2597,
+   "bounds": [
+    -1739.583,
+    -2456.25,
+    1085.417,
+    1781.25
+   ],
+   "continent_map": 30,
+   "name": "Alterac Valley",
+   "parent": 1424,
+   "type": 6
+  },
+  "1460": {
+   "area": 3277,
+   "bounds": [
+    862.5,
+    895.833,
+    1627.083,
+    2041.667
+   ],
+   "continent_map": 489,
+   "name": "Warsong Gulch",
+   "parent": 1413,
+   "type": 6
+  },
+  "1461": {
+   "area": 3358,
+   "bounds": [
+    337.5,
+    102.083,
+    1508.333,
+    1858.333
+   ],
+   "continent_map": 529,
+   "name": "Arathi Basin",
+   "parent": 1417,
+   "type": 6
+  },
+  "1463": {
+   "area": 0,
+   "bounds": [
+    -15980.0,
+    -11880.0,
+    5817.0,
+    9917.0
+   ],
+   "continent_map": 0,
+   "name": "Eastern Kingdoms",
+   "parent": 0,
+   "type": 2
+  },
+  "1464": {
+   "area": 0,
+   "bounds": [
+    -11870.0,
+    -13370.0,
+    12470.0,
+    10970.0
+   ],
+   "continent_map": 1,
+   "name": "Kalimdor",
+   "parent": 0,
+   "type": 2
+  },
+  "2482": {
+   "area": 616,
+   "bounds": [
+    3989.583,
+    -4395.834,
+    6304.166,
+    -922.916
+   ],
+   "continent_map": 1,
+   "name": "Mount Hyjal",
+   "parent": 1414,
+   "type": 3
+  },
+  "2521": {
+   "area": 16593,
+   "bounds": [
+    1247.917,
+    -1331.25,
+    4956.25,
+    4231.25
+   ],
+   "continent_map": 2991,
+   "name": "Zephras Isle",
+   "parent": 947,
+   "type": 3
+  },
+  "2524": {
+   "area": 16606,
+   "bounds": [
+    -835.416,
+    993.75,
+    447.916,
+    2918.75
+   ],
+   "continent_map": 2997,
+   "name": "Darkspear Islands",
+   "parent": 1414,
+   "type": 6
+  },
+  "2548": {
+   "area": 16591,
+   "bounds": [
+    -9700.0,
+    -6741.666,
+    -6466.666,
+    -1891.666
+   ],
+   "continent_map": 0,
+   "name": "Riverglades",
+   "parent": 1415,
+   "type": 3
+  },
+  "2652": {
+   "area": 16651,
+   "bounds": [
+    -3266.666,
+    -25.0,
+    -1900.0,
+    2025.0
+   ],
+   "continent_map": 1,
+   "name": "Shen'dralas",
+   "parent": 1414,
+   "type": 3
+  },
+  "2665": {
+   "area": 0,
+   "bounds": [
+    1247.92,
+    -1331.25,
+    4956.25,
+    4231.25
+   ],
+   "continent_map": 2991,
+   "name": "Zephras Isle",
+   "parent": 0,
+   "type": 3
+  },
+  "947": {
+   "area": 0,
+   "bounds": [
+    -12800.0,
+    -9600.0,
+    12266.7,
+    6933.3
+   ],
+   "continent_map": 1,
+   "name": "Azeroth",
+   "parent": 0,
+   "type": 1
+  }
+ },
+ "note": "bounds = world [minX, minY, maxX, maxY]; map x% runs from maxY to minY, y% from maxX to minX. era_bounds only where Forever redrew the map.",
+ "source": "wago.tools UiMap + UiMapAssignment"
+}

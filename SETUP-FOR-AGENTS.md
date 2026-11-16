@@ -94,6 +94,13 @@ Verify by calling the `summary` tool. No MCP support? Use the CLI directly; ever
 4. Never guess game state a tool can answer. Never recommend a quest without checking `quest <id>` first.
 5. A `wowhead` tool that prints `NEED web_extract(...)` wants one page: fetch that URL as markdown with your web
    tool and pass it to `import_page` (CLI: `FS wowhead import-page <url> -` with the markdown on stdin), then retry.
+6. "Where is <NPC / object / place>?": call `waypoint` (CLI: `FS way <name> [zone words]`, `FS way npc=<id>`,
+   `FS way <x> <y> <zone>`). Answer with the zone and coordinates, the source and its freshness in one line, and the
+   **paste command in a code block** — exactly as the tool printed it (it already matches their addons:
+   `/scribe way …`, TomTom `/way …`, Polestar or Forever's native `/run …`). List other spawn spots or other matches
+   briefly. If it says not found or "no position", say so: never invent or estimate coordinates, and never take
+   coordinates from Classic/Retail sites yourself (Forever redrew Stormwind, Mulgore, Redridge and Eastern
+   Plaguelands; the tool converts Wowhead's old points). Details: `docs/WAYPOINTS.md`.
 
 ## 7. Rules you must keep
 

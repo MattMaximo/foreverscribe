@@ -10,7 +10,7 @@ local FS = ForeverScribe
 local U = FS.Util
 local Try, Call, Clean, Sanitize = U.Try, U.Call, U.Clean, U.Sanitize
 
-FS.VERSION = "0.3.0"
+FS.VERSION = "0.4.0"
 FS.SCHEMA = 1
 FS.EVENT_CAP = 4000
 FS.SESSION_CAP = 200
@@ -1896,6 +1896,11 @@ local function describe(ev)
 end
 
 function FS.Slash(msg)
+	local raw = tostring(msg or ""):gsub("^%s+", "")
+	if raw:lower():match("^way%s") or raw:lower():match("^way$") then
+		if FS.Way then FS.Way.Command(raw:sub(4)) else Print("waypoints need Waypoint.lua (restart the game after updating)") end
+		return
+	end
 	msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
 	local cmd, arg = msg:match("^(%S*)%s*(.-)$")
 	if cmd == "" or cmd == "status" then
@@ -1927,11 +1932,12 @@ function FS.Slash(msg)
 		db.settings.played = (arg ~= "off")
 		Print("/played request at login " .. (db.settings.played and "on" or "off"))
 	else
-		Print("/scribe status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off")
+		Print("/scribe status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title]")
 	end
 end
 
 SLASH_FOREVERSCRIBE1 = "/scribe"
 SLASH_FOREVERSCRIBE2 = "/fscribe"
+SLASH_FOREVERSCRIBE3 = "/fs"
 -- Never reassign the SlashCmdList global itself (that would taint it); only add our key.
 SlashCmdList["FOREVERSCRIBE"] = FS.Slash

@@ -94,9 +94,18 @@ TOOLS = {
                     None),
     "ah_price": ("Auction-house prices (median, 7d/30d) for items. Off unless the user enabled [ah] in config.",
                  _obj({"items": {"type": "array", "items": {"type": "string"}}}, ["items"]), lambda a: ["ah"] + list(a["items"])),
+    "waypoint": ("Where an NPC, object or spot is in WoW: Forever, plus ONE chat command to paste that puts a map pin and "
+                 "an arrow on it (chosen for the character's loaded addons: ForeverScribe /scribe way, TomTom, Polestar, or "
+                 "Forever's native pin). Query: a name with optional zone words ('first aid trainer stormwind'), npc=<id>, "
+                 "object=<id>, or 'x y zone'. Never invent coordinates: if it says not found or unknown, say so.",
+                 _obj({"query": _s("name [+ zone words], npc=<id>, object=<id>, or 'x y zone'"),
+                       "addon": {"type": "string", "enum": ["scribe", "native", "tomtom", "polestar", "mappin"],
+                                 "description": "force a command style (default: by the character's loaded addons)"}},
+                      ["query"]),
+                 lambda a: ["way"] + (["--addon", a["addon"]] if a.get("addon") else []) + str(a["query"]).split()),
     "doctor": ("Check the ForeverScribe setup (config, sources, receiver).", {"type": "object", "properties": {}}, lambda a: ["doctor"]),
 }
-NO_CHAR = ("gear", "rate", "craft", "wowhead", "ah_price", "doctor", "import_page")
+NO_CHAR = ("gear", "rate", "craft", "wowhead", "ah_price", "doctor", "import_page", "waypoint")
 
 
 def run_cli(argv, stdin_text=None):
@@ -126,7 +135,7 @@ def call_tool(name, args):
         rc, text = run_cli(["wowhead", "import-page", args["url"], "-"], stdin_text=args["markdown"])
     else:
         argv = TOOLS[name][2](args)
-        if args.get("character") and name in ("gear", "rate", "craft", "wowhead"):
+        if args.get("character") and name in ("gear", "rate", "craft", "wowhead", "waypoint"):
             argv = argv[:1] + ["--for", args["character"]] + argv[1:]
         elif args.get("character") and name not in NO_CHAR:
             argv = ["--char", args["character"]] + argv

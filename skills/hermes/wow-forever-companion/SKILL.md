@@ -72,6 +72,11 @@ Dungeon drops:
 1. `$FS wowhead page 'zone=<id>' --rate` (IDs: Wowhead's Forever zone pages). Add `--max-req <level>`.
 2. `$FS dungeons` (their runs and loot) and `$FS lockouts` when it matters.
 
+Where is X (NPC, object, place):
+1. `$FS way <name> [zone words]` (or `npc=<id>`, `object=<id>`, `<x> <y> <zone>`) → zone + coordinates, the source, and the paste command chosen for their loaded addons (`/scribe way …`, TomTom `/way …`, Polestar or Forever's native `/run …`; Questie adds `/questie tomap npc <id>`).
+2. Answer: name, zone and coordinates; source + freshness in a few words; then the paste command alone in a code block exactly as printed; other spawns / other matches one line each. `--addon native|tomtom|polestar|mappin` forces a style if they ask.
+3. "No position" or "Not found" → say so and stop. Never invent, estimate or copy coordinates from Classic/Retail sources (Forever redrew Stormwind, Mulgore, Redridge, Eastern Plaguelands; `way` converts Wowhead's old points). Evidence: `docs/WAYPOINTS.md`.
+
 Profession training:
 1. `$FS wowhead page 'npc=<trainerID>'` → LEARN NOW / NEXT, known recipes hidden. Find a trainer: `$FS wowhead page 'search?q=expert+tailor'`.
 2. Rank at or near its cap (124/150): tell them to train the next rank first.

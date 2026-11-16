@@ -51,13 +51,14 @@ OPT = {"for": None, "all": False, "top": 12, "grep": None, "max-req": None, "ref
 
 
 # ---------- tooltip API (direct, cached, polite) ----------
-def tooltip(kind, eid):
+def tooltip(kind, eid, flavor="forever"):
+    """Wowhead tooltip JSON. flavor "classic" is only used to tell Classic-frame coordinates apart (waypoints.py)."""
     os.makedirs(CACHE, exist_ok=True)
-    p = os.path.join(CACHE, "%s-%s.json" % (kind, eid))
+    p = os.path.join(CACHE, "%s%s-%s.json" % ("" if flavor == "forever" else flavor + "-", kind, eid))
     if os.path.exists(p) and time.time() - os.path.getmtime(p) < TTL:
         with open(p, encoding="utf-8") as f:
             return json.load(f)
-    url = "https://nether.wowhead.com/forever/tooltip/%s/%s" % (kind, eid)
+    url = "https://nether.wowhead.com/%s/tooltip/%s/%s" % (flavor, kind, eid)
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=20) as r:
             d = json.loads(r.read().decode("utf-8", "replace"))
