@@ -95,6 +95,8 @@ class MacInstaller(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertTrue(os.path.isfile(os.path.join(self.addons, "ForeverScribe", "ForeverScribe.toc")))
         self.assertTrue(os.path.isdir(os.path.join(self.addons, "Polestar")), "other addons untouched")
+        for i in range(1, 11):
+            self.assertTrue(os.path.isfile(os.path.join(self.addons, "ForeverScribe_Route%02d" % i, "Route.lua")), "route slot %d" % i)
         with open(os.path.join(self.addons, "ForeverScribe", "Defaults.lua")) as fh:
             self.assertIn("saveReminderMinutes = 30", fh.read())
         with open(self.support("game.conf")) as fh:
@@ -109,7 +111,7 @@ class MacInstaller(unittest.TestCase):
         with open(plist) as fh:
             body = fh.read()
         self.assertIn(self.sv, body)
-        self.assertIn("<key>StartInterval</key><integer>120</integer>", body, "retries the spool even without saves")
+        self.assertIn("<key>StartInterval</key><integer>30</integer>", body, "retries the spool and polls for routes even without saves")
         with open(self.calls) as fh:
             self.assertIn("bootstrap", fh.read())
         self.assertIn("not reachable", r.stdout)  # TEST-NET address: nothing listens
@@ -120,6 +122,7 @@ class MacInstaller(unittest.TestCase):
         r = self.run_kit("uninstall.sh")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertFalse(os.path.exists(os.path.join(self.addons, "ForeverScribe")))
+        self.assertFalse(os.path.exists(os.path.join(self.addons, "ForeverScribe_Route01")))
         self.assertFalse(os.path.exists(plist))
         self.assertFalse(os.path.exists(self.support()))
         self.assertTrue(os.path.isdir(os.path.join(self.addons, "Polestar")))
@@ -136,6 +139,9 @@ class MacInstaller(unittest.TestCase):
             conf = fh.read()
         self.assertIn("FOLDER_DEST=", conf)
         self.assertIn("PUSH_URL=''", conf)
+        self.assertTrue(os.path.isdir(os.path.join(folder, "_route")), "route drop folder made")
+        with open(os.path.join(self.home, "Library", "LaunchAgents", "io.foreverscribe.sync.plist")) as fh:
+            self.assertIn(os.path.join(folder, "_route"), fh.read(), "launchd watches the route folder")
         r = self.run_kit("uninstall.sh")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         with open(os.path.join(self.addons, "ForeverScribe", "mine.txt")) as fh:
@@ -216,7 +222,7 @@ class WindowsInstaller(unittest.TestCase):
         """The PowerShell signer builds the same canonical string as auth.py."""
         with open(self.SCRIPTS[1], encoding="utf-8") as fh:
             src = fh.read()
-        self.assertIn('$canon = "fs1`n$ts`nPOST`n$path`n$digest"', src)
+        self.assertIn('$canon = "fs1`n$ts`n$method`n$path`n$digest"', src)
         with open(os.path.join(ROOT, "foreverscribe", "auth.py")) as fh:
             self.assertIn('"fs1\\n%s\\n%s\\n%s\\n%s"', fh.read())
 

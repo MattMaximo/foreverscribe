@@ -859,6 +859,29 @@ def import_page(rest):
     return 0
 
 
+def npc_seen(npc_id):
+    """One line: where the user's characters (or the shared file) actually met this NPC, and how far Wowhead's pin is
+    off. Uses the same lookup as `way` (own sightings > data/npc-locations.json > Wowhead). '' when nothing is known."""
+    try:
+        from . import npcs, waypoints as WP
+        ev = npcs.evidence(npc_id, OPT.get("for") or None)
+        mid, spots, src, _ = npcs.spots_from(ev)
+        if not spots:
+            return ""
+        line = "location: %s %s, %s (uiMapID %d) — %s" % (WP.maps().get(mid, {}).get("name", mid), WP.num(spots[0]["x"]),
+                                                          WP.num(spots[0]["y"]), mid, src)
+        loc = WP.locate("npc", npc_id)
+        if not loc.get("error"):
+            d, _pin = npcs.compare(mid, spots[0]["x"], spots[0]["y"], loc.get("spots"), loc.get("mapID"))
+            if d is not None and d > npcs.DISAGREE_YARDS:
+                line += "; Wowhead's pin is ~%d yd off" % round(d)
+            elif d is None and loc.get("spots") and loc.get("mapID") != mid:
+                line += "; Wowhead puts it in %s" % (loc.get("zone") or "another zone")
+        return line
+    except Exception:  # telemetry is optional context
+        return ""
+
+
 def main(a=None):
     a = list(sys.argv[1:] if a is None else a)
     args = []
@@ -903,6 +926,10 @@ def main(a=None):
             d = tooltip(cmd, i)
             print("%s [%s %s]: %s%s" % (d.get("name", "?"), cmd, i, "; ".join(_lines(d.get("tooltip", ""))[1:8])[:500] or d.get("error", ""),
                                         " | map %s" % json.dumps(d["map"]) if d.get("map") else ""))
+            if cmd == "npc" and str(i).isdigit():
+                seen = npc_seen(int(i))
+                if seen:
+                    print("  " + seen)
     else:
         print(__doc__)
         sys.exit(2)

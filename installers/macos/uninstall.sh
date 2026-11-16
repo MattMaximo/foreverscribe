@@ -27,7 +27,7 @@ for plist in "$AGENTS"/*.foreverscribe.sync.plist; do
 	fi
 done
 
-for d in ForeverScribe ForeverScribe_Live; do
+for d in ForeverScribe ForeverScribe_Live ForeverScribe_Route01 ForeverScribe_Route02 ForeverScribe_Route03 ForeverScribe_Route04 ForeverScribe_Route05 ForeverScribe_Route06 ForeverScribe_Route07 ForeverScribe_Route08 ForeverScribe_Route09 ForeverScribe_Route10; do
 	if [ -f "$SUPPORT/installed-$d" ] && [ -d "$ADDONS/$d" ]; then
 		run rm -rf "$ADDONS/$d"
 		echo "removed AddOns/$d"

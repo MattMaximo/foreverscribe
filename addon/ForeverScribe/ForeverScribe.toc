@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: ForeverScribe
-## Notes: Read-only character journal for your AI agent: snapshot + event log in SavedVariables. No network, no automation; the only chat read is auction-outcome system lines. /scribe way sets a map pin + arrow.
+## Notes: Read-only character journal for your AI agent: snapshot + event log in SavedVariables. No network, no automation; the only chat read is auction-outcome system lines. /scribe way sets a map pin + arrow; /fs go walks a route your agent wrote. Notes where you meet NPCs.
 ## Author: ForeverScribe contributors
-## Version: 0.4.0
+## Version: 0.5.0
 ## SavedVariables: ForeverScribeDB
 ## OptionalDeps: ForeverScribe_Live
 
@@ -11,3 +11,5 @@ Defaults.lua
 Collect.lua
 Core.lua
 Waypoint.lua
+Npcs.lua
+Route.lua

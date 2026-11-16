@@ -7,7 +7,7 @@
 #   (--pair and --folder can be combined: push first, the folder is a backup)
 # Options: --wow-dir DIR   --remind MINUTES (save reminder, 0 = off)   --extra "ForeverForge*.lua ..."
 #          --dry-run (show, change nothing)
-# Touches only: Interface/AddOns/ForeverScribe(_Live), ~/Library/Application Support/ForeverScribe/,
+# Touches only: Interface/AddOns/ForeverScribe(_Live, _Route01-10), ~/Library/Application Support/ForeverScribe/,
 #   ~/Library/LaunchAgents/io.foreverscribe.sync.plist. Undo everything with ./uninstall.sh.
 set -euo pipefail
 
@@ -20,6 +20,8 @@ LABEL="io.foreverscribe.sync"
 PLIST="$AGENTS/$LABEL.plist"
 LAUNCHCTL="${LAUNCHCTL:-launchctl}"
 DRY=0; ADDON_ONLY=0; PAIR=""; FOLDER=""; REMIND=""; EXTRA="ForeverForge*.lua"
+ADDON_DIRS="ForeverScribe ForeverScribe_Live"
+for i in 01 02 03 04 05 06 07 08 09 10; do ADDON_DIRS="$ADDON_DIRS ForeverScribe_Route$i"; done
 
 say() { printf '%s\n' "$*"; }
 run() { if [ $DRY -eq 1 ]; then say "  [dry-run] $*"; else "$@"; fi; }
@@ -43,7 +45,7 @@ done
 [ "$(id -u)" -eq 0 ] && { say "Run this as your normal user, not with sudo."; exit 1; }
 ADDONS="$WOW_DIR/Interface/AddOns"
 [ -d "$ADDONS" ] || { say "AddOns folder not found: $ADDONS"; say "Pass --wow-dir \"<...>/World of Warcraft/_forever_\"."; exit 1; }
-for d in ForeverScribe ForeverScribe_Live; do
+for d in $ADDON_DIRS; do
 	[ -f "$KIT/addon/$d/$d.toc" ] || { say "Kit is incomplete: missing addon/$d"; exit 1; }
 done
 case "$REMIND" in ''|*[!0-9]*) [ -n "$REMIND" ] && { say "--remind takes whole minutes"; exit 2; } ;; esac
@@ -72,10 +74,10 @@ fi
 TS="$(date +%Y%m%d-%H%M%S)"
 run mkdir -p "$SUPPORT"
 MANIFEST="$SUPPORT/install-manifest.txt"
-[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.3.0"; } > "$MANIFEST.new"
+[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.5.0"; } > "$MANIFEST.new"
 
 say "1) Addon -> $ADDONS"
-for d in ForeverScribe ForeverScribe_Live; do
+for d in $ADDON_DIRS; do
 	if [ -e "$ADDONS/$d" ]; then
 		if [ -f "$SUPPORT/installed-$d" ]; then
 			run rm -rf "$ADDONS/$d"   # our own previous install: replace in place
@@ -142,6 +144,11 @@ run mkdir -p "$AGENTS"
 # launchd WatchPaths needs concrete folders: every account's SavedVariables folder that exists
 # now, plus the Account folder itself (new accounts / first save).
 WATCH="		<string>$WOW_DIR/WTF/Account</string>"
+if [ -n "$FOLDER" ]; then  # routes the agent writes into the synced folder (foreverscribe route write)
+	run mkdir -p "$FOLDER/_route"
+	WATCH="$WATCH
+		<string>$FOLDER/_route</string>"
+fi
 shopt -s nullglob
 for sv in "$WOW_DIR"/WTF/Account/*/SavedVariables; do
 	WATCH="$WATCH
@@ -161,7 +168,7 @@ PLIST_BODY="<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 	<array>
 $WATCH
 	</array>
-	<key>StartInterval</key><integer>120</integer>
+	<key>StartInterval</key><integer>30</integer>
 	<key>ThrottleInterval</key><integer>10</integer>
 	<key>RunAtLoad</key><true/>
 	<key>ProcessType</key><string>Background</string>
@@ -197,4 +204,5 @@ fi
 say ""
 say "Done. Next: fully quit and restart WoW, check 'ForeverScribe' is enabled at character select,"
 say "log in, type /scribe status, then /reload. Within a minute your agent sees it ('foreverscribe summary')."
+say "Routes: when your agent writes one, press /fs go (bind it under Keybindings > AddOns > ForeverScribe)."
 say "Undo everything with ./uninstall.sh"

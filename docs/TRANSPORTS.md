@@ -75,3 +75,17 @@ For players with no shared folder, LAN or tunnel, a small hosted **end-to-end en
 
 It needs hosting, abuse limits and a crypto dependency (or a careful stdlib-only design), so it is deliberately left
 out of 0.3.
+
+## The other direction: routes (0.5)
+
+`foreverscribe route write` sends a route back to the game computer over the same transport (details:
+[`ROUTES-AND-NPCS.md`](ROUTES-AND-NPCS.md)):
+
+- `local`: writes the route slot files in `Interface/AddOns` directly.
+- `folder`: writes `<folder>/_route/Route.lua`; the game-side sync agent copies it into the slots (launchd watches
+  `_route`; Windows checks every 10 s).
+- `http`: the receiver keeps it; the game-side sync agent polls `POST /v1/route` (macOS every 30 s, Windows every 10 s),
+  signed with its pairing key (legacy unsigned agents get nothing), with `X-FS-Have: <rev>` so an unchanged route is a
+  `304`. The receiver records the fetch for `route status`.
+
+Both sync agents validate the file line by line before copying it into the WoW folder.

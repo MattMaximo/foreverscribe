@@ -3,7 +3,8 @@
 Your World of Warcraft: Forever character, readable by your AI agent.
 
 A small **read-only addon** records what your character is doing (level, gear, bags, quests, professions,
-reputation, talents, mail, auctions, vendors you visit, and more) into the game's normal SavedVariables file.
+reputation, talents, mail, auctions, vendors you visit, where you actually met each NPC, and more) into the game's
+normal SavedVariables file.
 A **companion** (Python 3.8+, standard library only) turns that file into answers for any agent:
 a CLI (`foreverscribe summary`) and an **MCP server** (`foreverscribe mcp`) for Claude Desktop, Claude Code,
 Codex, Hermes, or anything else that speaks MCP. No hosted service, no account, nothing leaves your machines
@@ -72,7 +73,8 @@ Claude Code, Codex, Hermes, and notes for ChatGPT / claude.ai.
 - **WARM** — focused commands on demand: `equipment`, `inventory`, `professions --recipes`, `reputation`, `talents`,
   `quest <id|name>`, `mail`, `auctions`, `vendor [npc]`, `currencies`, `history <timeframe>`, `achievements`,
   `explored`, `collections`, `stats`, `lockouts`, `dungeons`, `compare <item>`, plus Wowhead-backed `gear`, `rate`,
-  `craft`, `wowhead …`, `way <npc|place>` (where it is + a paste-in-chat waypoint), and optional AH prices `ah <item>`.
+  `craft`, `wowhead …`, `way <npc|place>` (where it is + a paste-in-chat waypoint), `npcs [--disagree]` (NPCs you
+  met and where Wowhead is wrong), `route …` (multi-stop routes for `/fs go`), and optional AH prices `ah <item>`.
 - **COLD** — `cold addons | keybinds | actionbars | macros`: only when the user asks.
 
 ## Safety (read-only by design)
@@ -82,7 +84,8 @@ The addon never sends chat, whispers, mail, or network traffic, never buys/sells
 and never calls `ReloadUI`. The **only** chat event it listens to is `CHAT_MSG_SYSTEM`, and only lines matching the
 client's own auction-outcome format strings (`ERR_AUCTION_SOLD_S` and friends, in your client's language) are kept
 as *kind + item name*; every other line is dropped unread. Player names from mail, auctions or invoices are never
-stored, and macro bodies are never read. See [`docs/CAPTURE-MATRIX.md`](docs/CAPTURE-MATRIX.md) for every API used.
+stored, and macro bodies are never read; NPC sightings skip players, pets and anything secret. The only thing the
+companion ever puts into the game folder is the data-only route file (`route write`), which you load with `/fs go`. See [`docs/CAPTURE-MATRIX.md`](docs/CAPTURE-MATRIX.md) for every API used.
 
 ## Waypoints ("where is the Stormwind First Aid trainer?")
 
@@ -91,6 +94,18 @@ to paste in chat, matched to your addons: `/scribe way 52.8 44.8 Stormwind City 
 pin and arrow (and hands it to Polestar's or TomTom's arrow if you use one). Without ForeverScribe 0.4 in game it
 prints the TomTom, Polestar or plain-Forever `/run` equivalent. The only thing the addon does here is set the map pin
 you asked for. Sources and the Stormwind/Mulgore map-redraw fix: [`docs/WAYPOINTS.md`](docs/WAYPOINTS.md).
+
+## Real NPC locations and routes (0.5)
+
+Wowhead Forever still has many NPCs at their Classic pins. When you talk to an NPC (or target a friendly one up
+close) the addon notes its id and where you stood, so `way` answers "confirmed in game" and flags "Wowhead's pin is
+~X yd off". `foreverscribe npcs --export-shared` makes a sanitized file (id, map, x, y, count, date) you can add to
+[`data/npc-locations.json`](data/npc-locations.json) by pull request; everyone's lookups use it next.
+
+Ask your agent for a route ("vendor, then the trainer, then the flight master") and press **`/fs go`** (bindable):
+an arrow to each stop, the next one set as you arrive. The agent writes the route into small load-on-demand
+"route slot" addons; one keypress loads it, ten per session (`/reload` frees them). Details, transports and limits:
+[`docs/ROUTES-AND-NPCS.md`](docs/ROUTES-AND-NPCS.md).
 
 ## Optional extras
 
@@ -104,8 +119,9 @@ you asked for. Sources and the Stormwind/Mulgore map-redraw fix: [`docs/WAYPOINT
 ## Repository layout
 
 ```
-addon/            ForeverScribe (+ ForeverScribe_Live) — the WoW addon
-foreverscribe/    Python package: store, queries, CLI, MCP server, receiver, auth, config, wowhead, ah, live capture
+addon/            ForeverScribe (+ ForeverScribe_Live, ForeverScribe_Route01-10 route slots) — the WoW addon
+data/             npc-locations.json: shared NPC sightings (contributions by pull request)
+foreverscribe/    Python package: store, queries, CLI, MCP server, receiver, auth, config, wowhead, waypoints, npcs, routes, ah, live capture
 bin/              foreverscribe (POSIX) and foreverscribe.cmd (Windows) launchers
 installers/       macos/ (install.sh, uninstall.sh, sync agent)  windows/ (install.ps1, sync agent)
 skills/           agent instructions: generic + Hermes skill source

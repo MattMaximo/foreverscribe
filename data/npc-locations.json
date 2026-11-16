@@ -1,0 +1,5 @@
+{
+ "about": "Where NPCs really stand in WoW: Forever, seen in game by ForeverScribe users (Forever map frame: uiMapID, x/y 0-100). No character, realm or account data. Add yours: foreverscribe npcs --export-shared, then open a pull request with the file merged here (foreverscribe npcs --merge data/npc-locations.json --from <file>).",
+ "format": 1,
+ "npcs": []
+}

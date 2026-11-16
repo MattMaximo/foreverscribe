@@ -4,8 +4,10 @@
 
 Every tool runs the matching CLI command in-process and returns its text. Tools mirror the CLI:
 start with `summary` (HOT tier), then focused tools (WARM), and `cold` only when asked.
-Read-only: nothing here changes the game, the addon or the user's files (other than the local
-cache/database the CLI already maintains).
+Read-only towards the game, with one deliberate exception: `route` action=write puts a data-only route file into
+the ForeverScribe route slots (directly, via the synced folder, or for the game computer's sync agent to fetch),
+which the player loads with /fs go. Nothing else changes the game, the addon or the user's files (other than the
+local cache/database the CLI already maintains).
 """
 
 import contextlib
@@ -30,6 +32,20 @@ def _obj(props=None, required=None):
 
 def _s(desc):
     return {"type": "string", "description": desc}
+
+
+def _route_argv(a):
+    act = a.get("action") or "show"
+    if act == "add":
+        return (["route", "add"] + (["--title", a["title"]] if a.get("title") else [])
+                + (["--radius", str(a["radius"])] if a.get("radius") else []) + str(a.get("query") or "").split())
+    if act == "add_stops":
+        return ["route", "add-json", json.dumps(a.get("stops") or [])]
+    if act == "remove":
+        return ["route", "remove", str(a.get("index") or 0)]
+    if act == "write":
+        return ["route", "write"] + (["--name", a["name"]] if a.get("name") else [])
+    return ["route", act]
 
 
 # name -> (description, input schema, argv builder)
@@ -103,9 +119,31 @@ TOOLS = {
                                  "description": "force a command style (default: by the character's loaded addons)"}},
                       ["query"]),
                  lambda a: ["way"] + (["--addon", a["addon"]] if a.get("addon") else []) + str(a["query"]).split()),
+    "npcs": ("NPCs the user's characters met in game (addon 0.5+): exact Forever position where they stood, visits, last date. "
+             "disagree=true lists only NPCs whose Wowhead Forever pin is off by more than 25 yd. These sightings beat Wowhead.",
+             _obj({"search": _s("name, <subtitle> or npc id filter"), "disagree": {"type": "boolean"}}),
+             lambda a: ["npcs"] + (["--disagree"] if a.get("disagree") else []) + (str(a["search"]).split() if a.get("search") else [])),
+    "route": ("Multi-stop route walked in game with /fs go (arrow to each stop, next on arrival). action: add (query = NPC "
+              "name/npc=<id>/'x y zone', resolved like waypoint, in-game sightings first), add_stops (stops = "
+              "[{title,mapID,x,y}] you already resolved), show, remove (index), clear, write (send it to the game computer; "
+              "then tell the user to press /fs go), status (was it picked up). Build the whole route, then write once. "
+              "Never invent coordinates.",
+              {"type": "object", "properties": {
+                  "action": {"type": "string", "enum": ["add", "add_stops", "show", "remove", "clear", "write", "status"]},
+                  "query": _s("for add: NPC name [+ zone], npc=<id>, object=<id>, or 'x y zone'"),
+                  "title": _s("for add: stop label (default: the NPC's name)"),
+                  "radius": {"type": "integer", "description": "arrival radius in yards (default 15)"},
+                  "stops": {"type": "array", "items": {"type": "object", "properties": {
+                      "title": {"type": "string"}, "mapID": {"type": "integer"}, "x": {"type": "number"}, "y": {"type": "number"},
+                      "radius": {"type": "integer"}}, "required": ["mapID", "x", "y"]}},
+                  "index": {"type": "integer", "description": "for remove: 1-based stop number"},
+                  "name": _s("for write: route name shown in game"),
+                  "character": CHAR},
+               "required": ["action"], "additionalProperties": False},
+              lambda a: _route_argv(a)),
     "doctor": ("Check the ForeverScribe setup (config, sources, receiver).", {"type": "object", "properties": {}}, lambda a: ["doctor"]),
 }
-NO_CHAR = ("gear", "rate", "craft", "wowhead", "ah_price", "doctor", "import_page", "waypoint")
+NO_CHAR = ("gear", "rate", "craft", "wowhead", "ah_price", "doctor", "import_page", "waypoint", "npcs", "route")
 
 
 def run_cli(argv, stdin_text=None):
@@ -135,7 +173,7 @@ def call_tool(name, args):
         rc, text = run_cli(["wowhead", "import-page", args["url"], "-"], stdin_text=args["markdown"])
     else:
         argv = TOOLS[name][2](args)
-        if args.get("character") and name in ("gear", "rate", "craft", "wowhead", "waypoint"):
+        if args.get("character") and name in ("gear", "rate", "craft", "wowhead", "waypoint", "npcs", "route"):
             argv = argv[:1] + ["--for", args["character"]] + argv[1:]
         elif args.get("character") and name not in NO_CHAR:
             argv = ["--char", args["character"]] + argv

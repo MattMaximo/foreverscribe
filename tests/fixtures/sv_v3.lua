@@ -1,6 +1,6 @@
 
 ForeverScribeDB = {
-	["addonVersion"] = "0.4.0",
+	["addonVersion"] = "0.5.0",
 	["chars"] = {
 		["Forever-Test:Pixelpop"] = {
 			["achievements"] = {
@@ -186,11 +186,11 @@ ForeverScribeDB = {
 						["map"] = 1432,
 						["zone"] = "Loch Modan",
 					},
-					["id"] = "1763250000-4422-1:1",
+					["id"] = "1763250000-d3eb-1:1",
 					["payload"] = {
 						["level"] = 23,
 						["money"] = 123456,
-						["version"] = "0.4.0",
+						["version"] = "0.5.0",
 						["zone"] = "Loch Modan",
 					},
 					["schema"] = 1,
@@ -205,7 +205,7 @@ ForeverScribeDB = {
 						["map"] = 1432,
 						["zone"] = "Loch Modan",
 					},
-					["id"] = "1763250000-4422-1:2",
+					["id"] = "1763250000-d3eb-1:2",
 					["payload"] = {
 						["auctionID"] = 77,
 						["buyout"] = 9000,
@@ -225,7 +225,7 @@ ForeverScribeDB = {
 						["map"] = 1432,
 						["zone"] = "Loch Modan",
 					},
-					["id"] = "1763250000-4422-1:3",
+					["id"] = "1763250000-d3eb-1:3",
 					["payload"] = {
 						["n"] = 1,
 						["senders"] = {
@@ -395,6 +395,30 @@ ForeverScribeDB = {
 					"Stormwind Auction House", -- [1]
 				},
 			},
+			["npcs"] = {
+				["256735:1432"] = {
+					["first"] = 1763250043,
+					["id"] = 256735,
+					["kind"] = "vendor",
+					["map"] = 1432,
+					["n"] = 1,
+					["name"] = "Mivin Shadowweave",
+					["r"] = 5,
+					["spots"] = {
+						{
+							["n"] = 1,
+							["t"] = 1763250043,
+							["x"] = 35.12,
+							["y"] = 47.21,
+						}, -- [1]
+					},
+					["subzone"] = "Thelsamar",
+					["t"] = 1763250043,
+					["x"] = 35.12,
+					["y"] = 47.21,
+					["zone"] = "Loch Modan",
+				},
+			},
 			["questTitles"] = {
 				[33] = "Collecting Kelp",
 				[783] = "A Threat Within",
@@ -447,7 +471,7 @@ ForeverScribeDB = {
 			["sessions"] = {
 				{
 					["events"] = 3,
-					["id"] = "1763250000-4422-1",
+					["id"] = "1763250000-d3eb-1",
 					["last"] = 1763250645,
 					["level"] = 23,
 					["money"] = 123456,
@@ -456,7 +480,7 @@ ForeverScribeDB = {
 				}, -- [1]
 			},
 			["snapshot"] = {
-				["addonVersion"] = "0.4.0",
+				["addonVersion"] = "0.5.0",
 				["bags"] = {
 					["free"] = 25,
 					["items"] = {
@@ -630,7 +654,7 @@ ForeverScribeDB = {
 				["questsCompletedAt"] = 1763250000,
 				["rested"] = 500,
 				["resting"] = false,
-				["session"] = "1763250000-4422-1",
+				["session"] = "1763250000-d3eb-1",
 				["skills"] = {
 					{
 						["group"] = "Professions",

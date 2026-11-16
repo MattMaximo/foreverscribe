@@ -10,7 +10,7 @@ local FS = ForeverScribe
 local U = FS.Util
 local Try, Call, Clean, Sanitize = U.Try, U.Call, U.Clean, U.Sanitize
 
-FS.VERSION = "0.4.0"
+FS.VERSION = "0.5.0"
 FS.SCHEMA = 1
 FS.EVENT_CAP = 4000
 FS.SESSION_CAP = 200
@@ -235,6 +235,7 @@ local function Location()
 	l.inInstance = (l.instance.type ~= nil and l.instance.type ~= "none")
 	return l
 end
+FS.MapPosition, FS.Location = MapPosition, Location
 
 local function Equipment()
 	local eq, totals = {}, {}
@@ -1383,6 +1384,10 @@ function H.PLAYER_ENTERING_WORLD(isLogin, isReload)
 		CheckInstance()
 		FS.SnapshotFast()
 	end
+	if FS.Route and not state.routeResumed then
+		state.routeResumed = true
+		FS.Schedule("route_resume", 3, function() FS.Route.Resume() end)
+	end
 end
 
 function H.PLAYER_LEAVING_WORLD()
@@ -1928,11 +1933,21 @@ function FS.Slash(msg)
 		elseif arg == "default" then db.settings.remind = nil end
 		local m = FS.ReminderMinutes()
 		Print(m > 0 and ("save reminder every " .. m .. " min without a /reload (/scribe remind off)") or "save reminder off (/scribe remind 30 to turn on)")
+	elseif cmd == "go" then
+		if FS.Route then FS.Route.Go() else Print("routes need ForeverScribe 0.5 (restart the game after updating)") end
+	elseif cmd == "next" or cmd == "skip" then
+		if FS.Route then FS.Route.Advance(1) end
+	elseif cmd == "back" or cmd == "prev" then
+		if FS.Route then FS.Route.Advance(-1) end
+	elseif cmd == "route" then
+		if FS.Route then FS.Route.Command(arg) end
+	elseif cmd == "npcs" or cmd == "npc" then
+		if FS.Npcs then FS.Npcs.Command(arg) end
 	elseif cmd == "played" then
 		db.settings.played = (arg ~= "off")
 		Print("/played request at login " .. (db.settings.played and "on" or "off"))
 	else
-		Print("/scribe status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title]")
+		Print("/scribe status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title] | go | next | back | route [clear] | npcs")
 	end
 end
 

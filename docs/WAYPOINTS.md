@@ -78,6 +78,10 @@ the player's current map. Waypoint.lua makes no protected call, no movement, no 
 
 ## Where coordinates come from (and the Stormwind trap)
 
+Since 0.5 an NPC the user's characters have met in game wins: its sighting (where the player stood when the NPC's
+window opened) comes first, then the shared `data/npc-locations.json`, then Wowhead; a gap over 25 yd is reported as
+"Wowhead's pin is ~X yd off". See [`ROUTES-AND-NPCS.md`](ROUTES-AND-NPCS.md). For everything else:
+
 Wowhead Forever tooltips (`nether.wowhead.com/forever/tooltip/npc/<id>`: zone AreaID + 0–100 points per floor) and
 the name search (`www.wowhead.com/forever/search/suggestions-template?q=`). Nothing is guessed: no Wowhead
 position → no command, and the answer says so.
@@ -93,8 +97,12 @@ maps, the answer is labelled UNVERIFIED.
 Multiple spawns: points within 2.5 map-% are one spot; spots are ordered nearest to the character's last known
 position (same continent), else by how many points Wowhead recorded.
 
+## Routes
+
+Multi-stop routes (`/fs go`) shipped in 0.5: [`ROUTES-AND-NPCS.md`](ROUTES-AND-NPCS.md). Each stop is set through
+the same `Way.Set` (native pin + arrow, or Polestar/TomTom).
+
 ## Not done yet
 
-- Multi-stop routes (`/fs go`) — planned; would feed Polestar's API or chain native pins.
-- Live in-game check of `/scribe way` on the MacBook (code is tested in the Lua client stub against the documented API
-  shapes only).
+- Live in-game check of `/scribe way` and `/fs go` on the MacBook (code is tested in the Lua client stub against the
+  documented API shapes only).

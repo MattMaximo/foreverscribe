@@ -1,4 +1,4 @@
-# ForeverScribe capture matrix (v0.3.0)
+# ForeverScribe capture matrix (v0.5.0)
 
 What the addon records about a character, which Forever API it reads, when, and how sure we are.
 Sources: Forever client 1.60.1.70938 UI source (`research/wow-ui-source-forever`, Gethe/wow-ui-source branch `forever`;
@@ -11,7 +11,7 @@ Status key:
 - **unverified**: shape known from docs/UI; real values not seen yet (needs an in-game /reload with 0.2/0.3).
 - **unsupported**: Forever doesn't expose it, or it isn't part of this game; not captured.
 
-`tools/check_api.py` checks every call in `Collect.lua`, `Core.lua` and `Live.lua` (all are doc or ui, except
+`tools/check_api.py` checks every call in `Collect.lua`, `Core.lua`, `Waypoint.lua`, `Npcs.lua`, `Route.lua` and `Live.lua` (all are doc or ui, except
 pcall-guarded Classic fallbacks). `tools/api_lookup.py` / `tools/api_probe.py` print signatures and status for any name.
 
 ## What "Legacy" is in Forever
@@ -122,3 +122,14 @@ zones 250, mounts/pets/toys 1000 each, currencies 200, quest titles 3000, mail 5
 | Hand-off to other arrows | Polestar `Polestar.Nav.API.Navigate/Cancel` (version 1), TomTom `TomTom:AddWaypoint/RemoveWaypoint` — only when that addon is loaded | same | nothing |
 
 Evidence and paste-command syntaxes: [`WAYPOINTS.md`](WAYPOINTS.md).
+
+## v0.5: NPC sightings (read-only) and routes (an action the player triggers)
+
+| What | API (Forever) | When | Stored | Status |
+|---|---|---|---|---|
+| NPC sightings: npcID, name, subtitle, uiMapID, player x/y, zone/subzone, kind, count | `UnitGUID("npc")` (doc, SecretWhenUnitIdentityRestricted: secret → skipped), `UnitName`, `UnitIsPlayer`, `UnitPlayerControlled` (doc), `C_TooltipInfo.GetUnit` (doc, subtitle line), `C_Map.GetBestMapForUnit` + `C_Map.GetPlayerMapPosition` (doc), `C_Map.GetMapWorldSize` (doc, yards) | GOSSIP_SHOW, MERCHANT_SHOW, TRAINER_SHOW, QUEST_DETAIL/GREETING/PROGRESS/COMPLETE, TAXIMAP_OPENED, BANKFRAME_OPENED, AUCTION_HOUSE_SHOW, PLAYER_INTERACTION_MANAGER_FRAME_SHOW (all doc) | `chars[k].npcs["<npcID>:<mapID>"] {id, name, sub, map, x, y, n, first, t, kind, zone, subzone, r, spots[≤4]}`; ≤1000 entries; 5 yd merge | doc; unverified in game |
+| Friendly NPC targeted up close | `PLAYER_TARGET_CHANGED` (doc), `InCombatLockdown`, `UnitExists`, `UnitIsFriend`, `CheckInteractDistance(unit, 3)` (doc; secret → skipped) | out of combat, within ~10 yd; `/scribe npcs target off` | same table, kind `target`, r = 10 | doc; unverified |
+| Route progress | `C_AddOns.LoadAddOn("ForeverScribe_RouteNN")` (doc), `C_AddOns.IsAddOnLoaded`, `C_Timer.NewTicker` (doc), `C_Map.GetPlayerMapPosition`, waypoint calls as in v0.4 | `/fs go`, `/fs next`, `/fs back`, key bindings (Bindings.xml); 1 s ticker only while a route runs | `ForeverScribeDB.route {rev, name, stops[], i, started, done}`; events `route_start`, `route_done` | doc; unverified |
+
+Never: players, pets, other players' names or GUIDs, objects, secret values; no input automation, no `ReloadUI`.
+The route slot addons (`ForeverScribe_Route01-10`) contain only data the companion wrote; see `docs/ROUTES-AND-NPCS.md`.

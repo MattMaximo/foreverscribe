@@ -82,6 +82,12 @@ CREATE TABLE IF NOT EXISTS raw_files (
     path TEXT PRIMARY KEY, account TEXT, name TEXT, sha256 TEXT, size INTEGER, mtime INTEGER, ingested_at INTEGER,
     parser TEXT, status TEXT
 );
+CREATE TABLE IF NOT EXISTS npc_sightings (
+    char_key TEXT NOT NULL, npc_id INTEGER NOT NULL, map_id INTEGER NOT NULL, name TEXT, subtitle TEXT,
+    x REAL, y REAL, count INTEGER, first_seen INTEGER, last_seen INTEGER, kind TEXT, zone TEXT, subzone TEXT,
+    radius INTEGER, spots TEXT, ingested_at INTEGER, PRIMARY KEY (char_key, npc_id, map_id)
+);
+CREATE INDEX IF NOT EXISTS npc_sightings_npc ON npc_sightings (npc_id);
 CREATE TABLE IF NOT EXISTS section_history (
     char_key TEXT NOT NULL, section TEXT NOT NULL, captured_at INTEGER, sha256 TEXT NOT NULL, json TEXT NOT NULL,
     ingested_at INTEGER, PRIMARY KEY (char_key, section, sha256)
@@ -161,6 +167,49 @@ def _store_sections(con, char_key, c, fallback_at, now):
         if name in HISTORY_SECTIONS:
             con.execute("INSERT OR IGNORE INTO section_history (char_key, section, captured_at, sha256, json, ingested_at)"
                         " VALUES (?,?,?,?,?,?)", (char_key, name, at, sha, js, now))
+
+
+def _num(v, lo=None, hi=None):
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    if (lo is not None and v < lo) or (hi is not None and v > hi):
+        return None
+    return v
+
+
+def _store_npcs(con, char_key, npcs, now):
+    """Addon 0.5 NPC sightings (chars[key].npcs["<npcID>:<mapID>"]). The newer sighting of an NPC on a map wins;
+    an older file arriving late never rolls a newer one back."""
+    for e in _as_dict(npcs).values():
+        if not isinstance(e, dict):
+            continue
+        nid, mid = _num(e.get("id"), 1), _num(e.get("map"), 1)
+        x, y = _num(e.get("x"), 0, 100), _num(e.get("y"), 0, 100)
+        if not (isinstance(nid, int) and isinstance(mid, int) and x is not None and y is not None):
+            continue
+        spots = [{"x": s.get("x"), "y": s.get("y"), "n": s.get("n"), "t": s.get("t")} for s in _as_list(e.get("spots"))
+                 if isinstance(s, dict) and _num(s.get("x"), 0, 100) is not None and _num(s.get("y"), 0, 100) is not None]
+        last = _num(e.get("t")) or 0
+        row = con.execute("SELECT last_seen, count FROM npc_sightings WHERE char_key=? AND npc_id=? AND map_id=?",
+                          (char_key, nid, mid)).fetchone()
+        if row and (row["last_seen"] or 0) > last:
+            continue
+        name = e.get("name") if isinstance(e.get("name"), str) else None
+        sub = e.get("sub") if isinstance(e.get("sub"), str) else None
+        con.execute(
+            "INSERT INTO npc_sightings (char_key, npc_id, map_id, name, subtitle, x, y, count, first_seen, last_seen, kind,"
+            " zone, subzone, radius, spots, ingested_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            " ON CONFLICT(char_key, npc_id, map_id) DO UPDATE SET name=COALESCE(excluded.name, npc_sightings.name),"
+            " subtitle=COALESCE(excluded.subtitle, npc_sightings.subtitle), x=excluded.x, y=excluded.y,"
+            " count=MAX(excluded.count, npc_sightings.count), first_seen=MIN(COALESCE(npc_sightings.first_seen, excluded.first_seen),"
+            " COALESCE(excluded.first_seen, npc_sightings.first_seen)), last_seen=excluded.last_seen, kind=excluded.kind,"
+            " zone=COALESCE(excluded.zone, npc_sightings.zone), subzone=COALESCE(excluded.subzone, npc_sightings.subzone),"
+            " radius=excluded.radius, spots=excluded.spots, ingested_at=excluded.ingested_at",
+            (char_key, nid, mid, name, sub, float(x), float(y), int(_num(e.get("n"), 0) or 1), _num(e.get("first")), last,
+             e.get("kind") if isinstance(e.get("kind"), str) else None,
+             e.get("zone") if isinstance(e.get("zone"), str) else None,
+             e.get("subzone") if isinstance(e.get("subzone"), str) else None,
+             int(_num(e.get("r"), 1, 200) or 5), _j(spots), now))
 
 
 def connect(path):
@@ -405,6 +454,7 @@ def ingest_sv_file(con, path, now=None):
                                 "INSERT OR IGNORE INTO quests_completed (char_key, quest_id, first_seen_at, source)"
                                 " VALUES (?,?,?, 'snapshot')", (char_key, qid, captured))
                 _store_sections(con, char_key, c, captured if isinstance(captured, int) else None, now)
+                _store_npcs(con, char_key, c.get("npcs"), now)
                 for qid, title in _as_dict(c.get("questTitles")).items():
                     if isinstance(qid, int) and title:
                         con.execute("INSERT OR IGNORE INTO quest_titles (quest_id, title) VALUES (?,?)", (qid, title))

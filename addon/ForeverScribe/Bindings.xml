@@ -1,0 +1,8 @@
+<Bindings>
+	<Binding name="FOREVERSCRIBE_GO" header="FOREVERSCRIBE" category="ADDONS">
+		if ForeverScribe and ForeverScribe.Route then ForeverScribe.Route.Go() end
+	</Binding>
+	<Binding name="FOREVERSCRIBE_NEXT" category="ADDONS">
+		if ForeverScribe and ForeverScribe.Route then ForeverScribe.Route.Advance(1) end
+	</Binding>
+</Bindings>

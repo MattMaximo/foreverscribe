@@ -33,7 +33,7 @@ for base, _, files in os.walk(os.path.join(SRC, "Interface")):
 ui = "\n".join(ui_text)
 
 code = ""
-for rel in ("addon/ForeverScribe/Collect.lua", "addon/ForeverScribe/Core.lua", "addon/ForeverScribe/Waypoint.lua", "addon/ForeverScribe_Live/Live.lua"):  # Util/Defaults call no game API
+for rel in ("addon/ForeverScribe/Collect.lua", "addon/ForeverScribe/Core.lua", "addon/ForeverScribe/Waypoint.lua", "addon/ForeverScribe/Npcs.lua", "addon/ForeverScribe/Route.lua", "addon/ForeverScribe_Live/Live.lua"):  # Util/Defaults call no game API
     code += open(os.path.join(ROOT, rel)).read()
 used = set(re.findall(r'(?:Call|U\.Fn)\("([A-Za-z_\.]+)"', code))
 used |= {"CreateFrame", "GetPhysicalScreenSize"}

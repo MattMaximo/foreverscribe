@@ -5,9 +5,12 @@
   foreverscribe way <x> <y> <zone>   |   way <zone> <x> <y>
 Options: --for CHAR, --addon scribe|native|tomtom|polestar|mappin (force a command style), --json, --all
 
-Where locations come from: Wowhead Forever tooltips (nether.wowhead.com/forever, cached 7 days) and the
-name search (www.wowhead.com/forever/search/suggestions-template). Coordinates are never guessed: no
-Wowhead position means no command.
+Where locations come from, best first:
+  1. your own characters' NPC sightings (addon 0.5+: where you stood when you talked to it) — "confirmed in game"
+  2. data/npc-locations.json, sightings other ForeverScribe users shared (no personal data)
+  3. Wowhead Forever tooltips (nether.wowhead.com/forever, cached 7 days) and its name search.
+When 1 or 2 disagree with Wowhead by more than 25 yards the answer says so ("Wowhead's pin is ~X yd off").
+Coordinates are never guessed: no position from any of these means no command.
 
 Forever redrew four maps (Mulgore, Eastern Plaguelands, Redridge Mountains, Stormwind City). Wowhead Forever
 still carries the old Classic-frame points there next to the new ones, so on those maps every point that is
@@ -254,6 +257,16 @@ def search(query, near_map=None):
     return cands[0], cands[1:], zone, None
 
 
+# ---------- the player's own NPC sightings (npcs.py) ----------
+def _npcs():
+    from . import npcs
+    return npcs
+
+
+NPCS = {"names": lambda words, zone, char: _npcs().name_matches(words, zone, char),
+        "evidence": lambda nid, char: _npcs().evidence(nid, char)}  # tests swap these
+
+
 # ---------- character context ----------
 def _ver(s):
     return tuple(int(x) for x in re.findall(r"\d+", s or "")[:3]) or (0,)
@@ -392,20 +405,49 @@ def answer(query, char=None, force=None, show_all=False):
                     "notes": []})
         entity = None
     else:
+        others = []
         if m:
             entity = {"kind": m.group(1).lower(), "id": int(m.group(2))}
-            others = []
         else:
-            entity, others, _, why = search(query, near_map=ch.get("mapID"))
+            entity = None
+            # an NPC this player has met in game, by exact name or <subtitle>, needs no Wowhead search
+            zone, rest = zone_in_query(words)
+            local = NPCS["names"](rest or words, zone, char)
+            if local and local[0]["rank"] <= 1:
+                entity = {"kind": "npc", "id": local[0]["id"]}
             if not entity:
-                out["error"] = why
-                out["candidates"] = [{k: c[k] for k in ("kind", "id", "name", "subtitle", "zone")} for c in others[:6]]
-                return out
+                entity, others, _, why = search(query, near_map=ch.get("mapID"))
+                if not entity:
+                    out["error"] = why
+                    out["candidates"] = [{k: c[k] for k in ("kind", "id", "name", "subtitle", "zone")} for c in others[:6]]
+                    return out
+        ev = NPCS["evidence"](entity["id"], char) if entity["kind"] == "npc" else {}
         loc = locate(entity["kind"], entity["id"])
-        if loc.get("error"):
+        own_mid, own_spots, own_src, own_row = _npcs().spots_from(ev) if ev else (None, [], None, None)
+        if loc.get("error") and not own_spots:
             out["error"] = loc["error"]
             return out
-        out.update(loc)
+        if own_spots and own_mid in maps():
+            wh = loc if not loc.get("error") else {}
+            out.update({"kind": "npc", "id": entity["id"], "name": wh.get("name") or (own_row or {}).get("name") or "NPC %d" % entity["id"],
+                        "subtitle": wh.get("subtitle") or (own_row or {}).get("subtitle") or "",
+                        "source": own_src, "url": "https://www.wowhead.com/forever/npc=%d" % entity["id"], "notes": [],
+                        "zone": maps()[own_mid]["name"], "mapID": own_mid, "spots": own_spots, "confirmed": True})
+            if wh:
+                d, pin = _npcs().compare(own_mid, own_spots[0]["x"], own_spots[0]["y"], wh.get("spots"), wh.get("mapID"))
+                if d is not None and d > _npcs().DISAGREE_YARDS:
+                    out["wowhead_off_yards"] = int(round(d))
+                    out["notes"].append("Wowhead's pin is ~%d yd off (Wowhead Forever: %s %s, %s). Using where it was "
+                                        "actually met." % (round(d), wh.get("zone") or "?", num(pin["x"]), num(pin["y"])))
+                elif d is None and wh.get("spots") and wh.get("mapID") != own_mid:
+                    out["notes"].append("Wowhead Forever puts it in %s; it was met in %s." % (wh.get("zone") or "another zone",
+                                                                                          maps()[own_mid]["name"]))
+                elif not wh.get("spots"):
+                    out["notes"].append("Wowhead Forever has no position for it; this one is from the game.")
+            else:
+                out["notes"].append("Wowhead lookup failed (%s); location from the game." % loc.get("error"))
+        else:
+            out.update(loc)
         out["other_matches"] = [{k: c[k] for k in ("kind", "id", "name", "subtitle", "zone")} for c in others[:5]]
     if not out.get("spots") or not out.get("mapID"):
         if out.get("spots"):

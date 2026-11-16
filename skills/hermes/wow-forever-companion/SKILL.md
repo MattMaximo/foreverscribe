@@ -76,6 +76,14 @@ Where is X (NPC, object, place):
 1. `$FS way <name> [zone words]` (or `npc=<id>`, `object=<id>`, `<x> <y> <zone>`) → zone + coordinates, the source, and the paste command chosen for their loaded addons (`/scribe way …`, TomTom `/way …`, Polestar or Forever's native `/run …`; Questie adds `/questie tomap npc <id>`).
 2. Answer: name, zone and coordinates; source + freshness in a few words; then the paste command alone in a code block exactly as printed; other spawns / other matches one line each. `--addon native|tomtom|polestar|mappin` forces a style if they ask.
 3. "No position" or "Not found" → say so and stop. Never invent, estimate or copy coordinates from Classic/Retail sources (Forever redrew Stormwind, Mulgore, Redridge, Eastern Plaguelands; `way` converts Wowhead's old points). Evidence: `docs/WAYPOINTS.md`.
+4. Addon 0.5+: an NPC they talked to answers "confirmed in game by <char>, <date>" from their own sighting; that beats Wowhead. "Wowhead's pin is ~X yd off" means Wowhead is wrong there: say so.
+
+NPCs met / where Wowhead is wrong: `$FS npcs [name]`, `$FS npcs --disagree`. Sharing: `$FS npcs --export-shared <file>` (no personal data) and a pull request merging it into `data/npc-locations.json`. Never upload anywhere yourself.
+
+Routes ("take me to A, then B, then C"):
+1. `$FS route clear`, then `$FS route add <query>` per stop (same lookup as `way`), or `$FS route add-json '[{"title":..,"mapID":..,"x":..,"y":..}]'`; `$FS route show`.
+2. `$FS route write`, then one line to the user: "Press /fs go in game (or its key); the arrow moves on as you arrive, /fs next skips."
+3. Nothing happened? `$FS route status`; `/fs go` loads 10 times per session (`/reload` resets, progress kept). Never press keys or /reload for them. Details: `docs/ROUTES-AND-NPCS.md`.
 
 Profession training:
 1. `$FS wowhead page 'npc=<trainerID>'` → LEARN NOW / NEXT, known recipes hidden. Find a trainer: `$FS wowhead page 'search?q=expert+tailor'`.
@@ -100,8 +108,8 @@ Never hardcode a spec. `$FS wowhead weights` reads the talent tab with the most 
 - Only `https://www.wowhead.com/forever/...` counts. Forever hides item stats until discovered and random-suffix items have none: no stats means unknown, never zero. Say "stats unknown, check in game".
 - Arrive fully contextualized: their spec, currency on hand, what they already know or owns, weakest slots, mat costs and other uses of the currency (other professions too). Gather it all before answering; never answer partially and ask.
 - Check what they did since the question was asked: `vendor` and `craft` read learned recipes and current currency. If they already bought it, say so first.
-- Verify an addon or slash command before giving it. ForeverScribe's real commands: `/scribe status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off`. For other addons, say you haven't verified their syntax unless you checked their files.
-- Read-only. Never automate the game, post, buy or sell.
+- Verify an addon or slash command before giving it. ForeverScribe's real commands (`/scribe` or `/fs`): `status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title] | go | next | back | route [clear] | npcs`. For other addons, say you haven't verified their syntax unless you checked their files.
+- Read-only. Never automate the game, post, buy or sell. The one write towards the game is `route write` (data-only route slots the player loads with /fs go).
 
 ## Output format
 

@@ -1,6 +1,7 @@
 <#
-ForeverScribe game-side sync agent (Windows). Ships SavedVariables to wherever your agent runs.
-Read-only towards the game: it never writes inside the WoW folder.
+ForeverScribe game-side sync agent (Windows). Ships SavedVariables to wherever your agent runs, and brings back the
+route your agent wrote (`foreverscribe route write`). The only thing it writes inside the WoW folder is
+Interface\AddOns\ForeverScribe_RouteNN\Route.lua (data-only route slots, read by /fs go); nothing else.
 
   foreverscribe-sync.ps1            one pass (ship anything new, retry the spool)
   foreverscribe-sync.ps1 -Watch     keep running: check every 10 s (what the logon task runs)
@@ -40,10 +41,10 @@ function Load-Conf {
 
 function Hex([byte[]]$b) { return -join ($b | ForEach-Object { $_.ToString("x2") }) }
 
-function Sign([string]$key, [long]$ts, [string]$path, [byte[]]$body) {
+function Sign([string]$key, [long]$ts, [string]$path, [byte[]]$body, [string]$method = "POST") {
     $sha = [System.Security.Cryptography.SHA256]::Create()
     $digest = Hex $sha.ComputeHash($body)
-    $canon = "fs1`n$ts`nPOST`n$path`n$digest"
+    $canon = "fs1`n$ts`n$method`n$path`n$digest"
     $h = New-Object System.Security.Cryptography.HMACSHA256 (, [System.Text.Encoding]::UTF8.GetBytes($key))
     return Hex $h.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($canon))
 }
@@ -121,9 +122,68 @@ function Ship($c, [string]$acct, [string]$name, [string]$src) {
     }
 }
 
+# ---- route slots (agent -> game) ----
+# A slot file is data only: every line must be one of the shapes routes.py writes (strings without quotes or
+# backslashes cannot break out), so a damaged or hostile file never puts code into the game.
+$RouteLine = '^(-- [^\[].*|ForeverScribe_RouteData = (\{|nil)|\tv = [0-9]+,|\trev = "[A-Za-z0-9_.-]+",|\tname = "[^"\\]*",|\tcreated = [0-9]+,|\tstops = \{|\t\t\{ map = [0-9]+, x = [0-9.]+, y = [0-9.]+, r = [0-9]+, title = "[^"\\]*" \},|\t\},|\})?$'
+$RouteState = Join-Path $Support "route-rev"
+
+function Valid-Route([string]$text) {
+    $lines = $text -split "`n"
+    if (-not $lines[0].StartsWith("-- ForeverScribe route slot")) { return $false }
+    if (-not ($lines -contains "ForeverScribe_RouteData = {")) { return $false }
+    foreach ($l in $lines) { if ($l -cnotmatch $RouteLine) { return $false } }
+    return $true
+}
+
+function Install-Route($c, [string]$text, [string]$from) {
+    $text = $text -replace "`r", ""
+    if (-not (Valid-Route $text)) { Log "route from $from ignored: not a ForeverScribe route slot file"; return }
+    $rev = if ($text -match 'rev = "([A-Za-z0-9_.-]+)"') { $Matches[1] } else { "" }
+    $addons = Join-Path $c.wowDir "Interface\AddOns"
+    $n = 0
+    foreach ($slot in Get-ChildItem $addons -Directory -Filter "ForeverScribe_Route??" -ErrorAction SilentlyContinue) {
+        if (-not (Test-Path (Join-Path $slot.FullName "$($slot.Name).toc"))) { continue }
+        $dest = Join-Path $slot.FullName "Route.lua"
+        if ((Test-Path $dest) -and ((Get-Content $dest -Raw) -replace "`r", "") -ceq $text) { $n++; continue }
+        [System.IO.File]::WriteAllText("$dest.tmp", $text, (New-Object System.Text.UTF8Encoding $false))
+        Move-Item "$dest.tmp" $dest -Force
+        $n++
+    }
+    if ($n -eq 0) { Log "route $rev from ${from}: no route slots in $addons (install ForeverScribe 0.5 and restart WoW)"; return }
+    $prev = if (Test-Path $RouteState) { (Get-Content $RouteState -Raw).Trim() } else { "" }
+    if ($prev -ne $rev) { Set-Content -Path $RouteState -Value $rev -NoNewline -Encoding ASCII; Log "route $rev from $from written to $n slots: press /fs go in game" }
+}
+
+function Route-Pickup($c) {
+    if (-not (Test-Path (Join-Path $c.wowDir "Interface\AddOns"))) { return }
+    if ($c.folderDest) {
+        $f = Join-Path $c.folderDest "_route\Route.lua"
+        if (Test-Path $f) { Install-Route $c (Get-Content $f -Raw) "synced folder" }
+    }
+    if ($c.pushUrl -and (Test-Path $KeyPath)) {
+        $key = (Get-Content $KeyPath -Raw).Trim()
+        $body = [System.Text.Encoding]::UTF8.GetBytes("route")
+        $ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $have = if (Test-Path $RouteState) { (Get-Content $RouteState -Raw).Trim() } else { "" }
+        $headers = @{ "X-FS-Key" = [string]$c.keyId; "X-FS-Time" = "$ts"; "X-FS-Sig" = (Sign $key $ts "/v1/route" $body); "X-FS-Have" = $have }
+        try {
+            $r = Invoke-WebRequest -Uri ($c.pushUrl + "/v1/route") -Method Post -Body $body -Headers $headers `
+                -ContentType "application/octet-stream" -TimeoutSec 15 -UseBasicParsing
+            if ($r.StatusCode -eq 200) {
+                $text = if ($r.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($r.Content) } else { [string]$r.Content }
+                Install-Route $c $text "receiver"
+            }
+        } catch {
+            if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 403) { Log "receiver refused the route fetch (403): re-pair with: foreverscribe pair" }
+        }
+    }
+}
+
 function Pass {
     $c = Load-Conf
     if (-not $c.pushUrl -and -not $c.folderDest) { if ($VerboseLog) { Log "no transport configured (local mode)" }; return }
+    Route-Pickup $c
     $accounts = Join-Path $c.wowDir "WTF\Account"
     if ($c.pushUrl -and (Test-Path $SpoolDir)) {
         foreach ($s in Get-ChildItem $SpoolDir -Recurse -Filter *.lua -File) {

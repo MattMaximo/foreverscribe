@@ -1,7 +1,8 @@
 # Setup for agents — install and use ForeverScribe for your user
 
 You are an AI agent (Claude, Codex, ChatGPT, Hermes, …) helping a WoW: Forever player. Follow these steps in
-order. Ask the user only where marked **ASK**. Everything here is read-only towards the game.
+order. Ask the user only where marked **ASK**. Everything here is read-only towards the game, except the data-only
+route file `route write` puts into the ForeverScribe route slots (loaded only when the player presses `/fs go`).
 
 ## 0. What you need
 
@@ -101,9 +102,25 @@ Verify by calling the `summary` tool. No MCP support? Use the CLI directly; ever
    briefly. If it says not found or "no position", say so: never invent or estimate coordinates, and never take
    coordinates from Classic/Retail sites yourself (Forever redrew Stormwind, Mulgore, Redridge and Eastern
    Plaguelands; the tool converts Wowhead's old points). Details: `docs/WAYPOINTS.md`.
+   When the tool says "confirmed in game" (the player met that NPC; addon 0.5+) trust it over Wowhead and say so;
+   when it says "Wowhead's pin is ~X yd off", tell the user Wowhead is wrong there.
+7. "Which NPCs did I meet / where is Wowhead wrong?": `npcs` (`FS npcs`, `FS npcs --disagree`). The user wants to
+   share corrections: `FS npcs --export-shared` (no personal data) and help them open a pull request that merges it
+   into `data/npc-locations.json` (`FS npcs --merge data/npc-locations.json --from <file>`). Never upload anything
+   to Wowhead or elsewhere yourself.
+8. "Take me to A, then B, then C" (errands, trainers, a quest hub run): build a route, then write it once.
+   MCP `route`: `action=add` with `query` per stop (same lookup as `waypoint`; it refuses unknown positions), or
+   `action=add_stops` with stops you already resolved; `action=show` to check the order; `action=write`. CLI: `FS route
+   add <query>`, `FS route show`, `FS route write`. Then tell the user, in one line: "Press /fs go (or its key) in game;
+   the arrow moves to the next stop as you arrive, /fs next skips." Start a fresh route with `action=clear`. If they
+   say nothing happened: `FS route status` (http: shows whether the game computer fetched it; folder: wait for the
+   sync), and remind them `/fs go` loads at most 10 times per session (`/reload` resets; progress is kept). Never
+   press keys or `/reload` for them. Details and limits: `docs/ROUTES-AND-NPCS.md`.
 
-## 7. Rules you must keep
+## 9. Rules you must keep
 
 - Read-only. Don't edit the addon to add automation, chat, network or protected calls; don't call `ReloadUI`.
+- The only write towards the game is `route write`. Never hand-edit the route slot files: the sync agent rejects
+  anything that isn't exactly what the companion writes.
 - The pairing code and `receiver-keys.json` are secrets. Don't post them anywhere.
 - Don't commit the user's `config.toml`, data dir, SavedVariables or logs to any repository.

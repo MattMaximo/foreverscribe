@@ -880,6 +880,265 @@ test("way: source makes no protected or movement calls", function()
 end)
 
 
+-- v0.5 NPC sightings --------------------------------------------------------
+local function npcs() return C().npcs or {} end
+local function nkeys() local n = 0 for _ in pairs(npcs()) do n = n + 1 end return n end
+local function talk(ev, guid, name, x, y, extra)
+	W.zone.x, W.zone.y = x or W.zone.x, y or W.zone.y
+	W.units.npc = { guid = guid, name = name, sub = extra and extra.sub, player = extra and extra.player }
+	W.Fire(ev, extra and extra.arg)
+	W.units.npc = nil
+end
+local SHAINA = "Creature-0-5250-0-12-2327-00004A3F1C"
+
+test("npcs: gossip records id, name, subtitle, map and the player's spot", function()
+	W.Boot()
+	W.zone.zone, W.zone.subzone, W.zone.mapID = "Stormwind City", "Cathedral Square", 1453
+	talk("GOSSIP_SHOW", SHAINA, "Shaina Fuller", 0.528, 0.448, { sub = "First Aid Trainer" })
+	local e = npcs()["2327:1453"]
+	truthy(e, "sighting stored under npcID:mapID")
+	eq(e.id, 2327); eq(e.name, "Shaina Fuller"); eq(e.sub, "First Aid Trainer"); eq(e.map, 1453)
+	near(e.x, 52.8); near(e.y, 44.8); eq(e.n, 1); eq(e.kind, "gossip"); eq(e.zone, "Stormwind City"); eq(e.subzone, "Cathedral Square")
+	eq(e.r, 5)
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("npcs: one conversation counts once; a later visit within 5 yd merges; a far spot is its own", function()
+	W.Boot()
+	W.zone.mapID = 1453
+	talk("GOSSIP_SHOW", SHAINA, "Shaina Fuller", 0.528, 0.448)
+	talk("TRAINER_SHOW", SHAINA, "Shaina Fuller", 0.5281, 0.4481) -- same conversation, next window
+	W.Fire("PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 7) -- (no npc unit any more: ignored)
+	local e = npcs()["2327:1453"]
+	eq(e.n, 1, "several windows of one conversation")
+	W.Advance(120)
+	talk("GOSSIP_SHOW", SHAINA, "Shaina Fuller", 0.5300, 0.4500) -- ~4 yd away (1737 x 1158 yd map)
+	eq(#e.spots, 1); eq(e.n, 2); truthy(e.x > 52.8 and e.x < 53.0, "running mean " .. e.x)
+	W.Advance(120)
+	talk("GOSSIP_SHOW", SHAINA, "Shaina Fuller", 0.60, 0.50)
+	eq(#e.spots, 2, "far spot kept separately"); eq(e.n, 3)
+	near(e.x, e.spots[1].x, "best spot = most sightings")
+	eq(nkeys(), 1)
+end)
+
+test("npcs: secret GUIDs, players, pets and objects are never stored", function()
+	W.Boot()
+	talk("GOSSIP_SHOW", W.Secret(), "Hidden")
+	talk("GOSSIP_SHOW", "Player-5250-0A1B2C3D", "Someone", nil, nil, { player = true })
+	talk("GOSSIP_SHOW", "Player-5250-0A1B2C3D", "Someone")
+	talk("GOSSIP_SHOW", "Pet-0-5250-0-12-416-0100000001", "Imp")
+	W.units.target = { guid = "Creature-0-1-0-1-31216-00000001", name = "Mirror Image", sub = "Someone's Minion", friend = true, dist = 3, controlled = true }
+	W.Fire("PLAYER_TARGET_CHANGED"); W.units.target = nil
+	talk("GOSSIP_SHOW", "GameObject-0-5250-0-12-1731-0000000001", "Copper Vein")
+	eq(nkeys(), 0)
+	truthy(ForeverScribe.Npcs.skipped.secret >= 1, "secret counted")
+	eq(ForeverScribe.Npcs.ParseGUID("Creature-0-1-0-1-2327-00000000"), 2327)
+	eq(ForeverScribe.Npcs.ParseGUID("Vehicle-0-1-0-1-2327-00000000"), nil)
+	W.zone.x = nil -- no position (instance): skip
+	talk("GOSSIP_SHOW", SHAINA, "Shaina Fuller")
+	eq(nkeys(), 0, "no position, no sighting")
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("npcs: secret name or position values are dropped", function()
+	W.Boot()
+	W.units.npc = { guid = SHAINA, name = W.Secret() }
+	W.Fire("MERCHANT_SHOW")
+	local e = npcs()["2327:1432"]
+	truthy(e, "id and spot are enough"); eq(e.name, nil)
+	W.units.npc = nil
+	local pos = C_Map.GetPlayerMapPosition
+	C_Map.GetPlayerMapPosition = function() return { x = W.Secret(), y = W.Secret() } end
+	W.units.npc = { guid = "Creature-0-1-0-1-240-00000000", name = "Marshal Dughan" }
+	W.Fire("QUEST_DETAIL")
+	C_Map.GetPlayerMapPosition = pos
+	eq(npcs()["240:1432"], nil, "secret position: skipped")
+	-- the whole record survives a /reload as plain SavedVariables data
+	W.Relog(true)
+	truthy(C().npcs["2327:1432"], "kept across /reload")
+end)
+
+test("npcs: every NPC window event and the interaction manager record", function()
+	W.Boot()
+	local evs = { "GOSSIP_SHOW", "MERCHANT_SHOW", "TRAINER_SHOW", "QUEST_DETAIL", "QUEST_GREETING", "QUEST_PROGRESS",
+		"QUEST_COMPLETE", "TAXIMAP_OPENED", "BANKFRAME_OPENED", "AUCTION_HOUSE_SHOW" }
+	for i, ev in ipairs(evs) do talk(ev, "Creature-0-1-0-1-" .. (1000 + i) .. "-00000000", "N" .. i) end
+	talk("PLAYER_INTERACTION_MANAGER_FRAME_SHOW", "Creature-0-1-0-1-2000-00000000", "Innkeeper", nil, nil, { arg = 20 })
+	talk("PLAYER_INTERACTION_MANAGER_FRAME_SHOW", "Creature-0-1-0-1-2001-00000000", "Mailbox?", nil, nil, { arg = 17 })
+	eq(nkeys(), #evs + 1, "mail interaction ignored")
+	eq(npcs()["1008:1432"].kind, "flightmaster"); eq(npcs()["2000:1432"].kind, "innkeeper")
+	local reg = W.Registered()
+	for _, ev in ipairs(evs) do truthy(reg[ev], ev .. " registered") end
+	truthy(reg.PLAYER_TARGET_CHANGED)
+end)
+
+test("npcs: friendly NPC targeted within 10 yd, out of combat; never far, hostile, players or secret ranges", function()
+	W.Boot()
+	local function target(u) W.units.target = u; W.Fire("PLAYER_TARGET_CHANGED"); W.units.target = nil end
+	target({ guid = "Creature-0-1-0-1-300-00000000", name = "Guard", friend = true, dist = 30 })
+	target({ guid = "Creature-0-1-0-1-301-00000000", name = "Wolf", friend = false, dist = 5 })
+	target({ guid = "Player-1-00000001", name = "Ally", friend = true, player = true, dist = 5 })
+	target({ guid = "Creature-0-1-0-1-302-00000000", name = "Guard", friend = true, secretDist = true })
+	W.combat = true
+	target({ guid = "Creature-0-1-0-1-303-00000000", name = "Guard", friend = true, dist = 5 })
+	W.combat = false
+	eq(nkeys(), 0)
+	target({ guid = "Creature-0-1-0-1-304-00000000", name = "Guard", friend = true, dist = 5 })
+	eq(npcs()["304:1432"].kind, "target"); eq(npcs()["304:1432"].r, 10)
+	-- a later window conversation upgrades the kind and radius
+	W.Advance(60)
+	talk("GOSSIP_SHOW", "Creature-0-1-0-1-304-00000000", "Guard")
+	eq(npcs()["304:1432"].kind, "gossip"); eq(npcs()["304:1432"].r, 5)
+	ForeverScribe.Slash("npcs target off")
+	target({ guid = "Creature-0-1-0-1-305-00000000", name = "Guard", friend = true, dist = 5 })
+	eq(npcs()["305:1432"], nil, "targeting off")
+	truthy(lastChat():find("1 NPC sightings", 1, true), lastChat())
+end)
+
+test("npcs: the table is capped, oldest sightings dropped; spots per NPC capped", function()
+	W.Boot()
+	local N = ForeverScribe.Npcs
+	local store = {}
+	local flat = function() return 0 end
+	for i = 1, 30 do N.Merge(store, { id = i, map = 1, x = 1, y = 1, kind = "gossip" }, 1000 + i, flat) end
+	eq(N.Trim(store, 20), 10); truthy(store[30 .. ":1"] and not store["1:1"], "newest kept")
+	local far = function(_, x1, y1, x2, y2) return math.abs(x1 - x2) * 100 end
+	for i = 1, 8 do N.Merge(store, { id = 99, map = 1, x = i * 10, y = 1, kind = "gossip" }, 5000 + i * 60, far) end
+	eq(#store["99:1"].spots, N.MAX_SPOTS); eq(store["99:1"].n, 8)
+end)
+
+-- v0.5 routes ---------------------------------------------------------------
+local function slotDir()
+	local d = os.tmpname() .. "_slots"
+	os.remove(d:gsub("_slots$", ""))
+	for i = 1, 10 do os.execute(string.format("mkdir -p '%s/ForeverScribe_Route%02d'", d, i)) end
+	return d
+end
+local function writeSlots(d, body, only)
+	for i = 1, 10 do
+		if not only or only == i then
+			local f = assert(io.open(string.format("%s/ForeverScribe_Route%02d/Route.lua", d, i), "w")); f:write(body); f:close()
+		end
+	end
+end
+local function routeLua(rev, stops)
+	local out = { "-- ForeverScribe route (written by the companion; data only). rev=" .. rev, "ForeverScribe_RouteData = {",
+		"v = 1,", 'rev = "' .. rev .. '",', 'name = "Errands",', "created = 1763250000,", "stops = {" }
+	for _, s in ipairs(stops) do
+		out[#out + 1] = string.format('{ map = %d, x = %s, y = %s, r = %d, title = "%s" },', s[1], s[2], s[3], s[5] or 15, s[4])
+	end
+	out[#out + 1] = "},"; out[#out + 1] = "}"
+	return table.concat(out, "\n") .. "\n"
+end
+local STOPS = { { 1453, 52.8, 44.8, "Shaina Fuller" }, { 1453, 60, 50, "Bank" }, { 1453, 40, 70, "Flight master" } }
+
+test("route: /fs go with nothing written says so; the empty slot is used up", function()
+	local d = slotDir(); W.slotDir = d
+	writeSlots(d, "-- empty\nForeverScribe_RouteData = nil\n")
+	W.Boot()
+	ForeverScribe.Slash("go")
+	truthy(lastChat():find("route file is empty", 1, true), lastChat())
+	eq(W.slotsLoaded.ForeverScribe_Route01, true)
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("route: a rewritten slot loads in-session; stops advance on arrival, /fs next, done clears", function()
+	local d = slotDir(); W.slotDir = d
+	writeSlots(d, "ForeverScribe_RouteData = nil\n")
+	W.Boot()
+	W.zone.mapID, W.zone.x, W.zone.y = 1453, 0.10, 0.10
+	ForeverScribe.Slash("go") -- slot 1: empty
+	writeSlots(d, routeLua("r1", STOPS)) -- the companion writes while the game runs
+	ForeverScribe.Slash("go") -- slot 2 reads the new file
+	local r = ForeverScribeDB.route
+	truthy(r and r.rev == "r1", "route stored in SavedVariables"); eq(#r.stops, 3); eq(r.i, 1)
+	eq(W.waypoint.map, 1453); near(W.waypoint.x, 0.528); eq(W.superTracked, true)
+	eq(W.ActiveTickers(), 1, "one distance ticker")
+	W.Advance(3); eq(r.i, 1, "far away: still stop 1")
+	W.zone.x, W.zone.y = 0.5285, 0.4485 -- ~1 yd from stop 1
+	W.Advance(1.5)
+	eq(r.i, 2, "arrived at stop 1 -> stop 2"); near(W.waypoint.x, 0.60)
+	ForeverScribe.Slash("next"); eq(r.i, 3); near(W.waypoint.y, 0.70)
+	ForeverScribe.Slash("back"); eq(r.i, 2); ForeverScribe.Slash("next")
+	W.zone.x, W.zone.y = 0.40, 0.70
+	W.Advance(1.5)
+	truthy(r.done, "last stop reached"); eq(W.waypoint, nil, "pin cleared"); eq(W.ActiveTickers(), 0, "ticker stopped")
+	truthy(table.concat(W.chat, "\n"):find("route Errands done", 1, true))
+	ForeverScribe.Slash("route")
+	truthy(lastChat():find("x 3. Flight master", 1, true), lastChat())
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("route: same rev keeps progress; slots run out until /reload; progress survives /reload", function()
+	local d = slotDir(); W.slotDir = d
+	writeSlots(d, routeLua("r2", STOPS))
+	W.Boot()
+	W.zone.mapID, W.zone.x, W.zone.y = 1453, 0.10, 0.10
+	ForeverScribe.Slash("go"); ForeverScribe.Slash("next")
+	eq(ForeverScribeDB.route.i, 2)
+	ForeverScribe.Slash("go")
+	truthy(lastChat():find("stop 2/3", 1, true) or table.concat(W.chat, "\n"):find("same route as before; stop 2/3", 1, true))
+	eq(ForeverScribeDB.route.i, 2, "same route: progress kept")
+	for _ = 3, 10 do ForeverScribe.Slash("go") end
+	ForeverScribe.Slash("go")
+	truthy(table.concat(W.chat, "\n"):find("all 10 route slots were used this session; /reload frees them", 1, true))
+	eq(ForeverScribeDB.route.i, 2)
+	W.Relog(true)
+	eq(ForeverScribeDB.route.i, 2, "saved across /reload")
+	W.Advance(5)
+	eq(W.waypoint and W.waypoint.map, 1453, "current stop back on the map after /reload"); near(W.waypoint.x, 0.60)
+	writeSlots(d, routeLua("r3", { { 1429, 42.2, 65.8, "Marshal Dughan" } }))
+	ForeverScribe.Slash("go")
+	eq(ForeverScribeDB.route.rev, "r3", "slots free again after /reload"); eq(ForeverScribeDB.route.i, 1)
+	ForeverScribe.Slash("route clear"); eq(ForeverScribeDB.route, nil); eq(W.waypoint, nil)
+end)
+
+test("route: bad data, missing slots and other maps", function()
+	local d = slotDir(); W.slotDir = d
+	writeSlots(d, routeLua("bad", { { 1453, 150, 20, "Nowhere" } }))
+	W.Boot()
+	ForeverScribe.Slash("go")
+	truthy(lastChat():find("stop 1 is not a valid map position", 1, true), lastChat())
+	eq(ForeverScribeDB.route, nil)
+	local R = ForeverScribe.Route
+	eq(R.Validate({ v = 2, rev = "x", stops = {} }), nil)
+	eq(R.Validate({ v = 1, rev = "x y", stops = { { map = 1, x = 1, y = 1 } } }), nil, "rev charset")
+	local ok = R.Validate({ v = 1, rev = "x", name = 'a|cffff0000"b', stops = { { map = 1453, x = 1, y = 2, r = 1, title = "T|r" } } })
+	eq(ok.name, "acffff0000b"); eq(ok.stops[1].r, 3); eq(ok.stops[1].title, "Tr")
+	-- player on another map: no distance, no advance
+	writeSlots(d, routeLua("r4", { { 1429, 50, 50, "Goldshire" }, { 1429, 10, 10, "B" } }))
+	W.zone.mapID, W.zone.strictMap = 1453, true
+	ForeverScribe.Slash("go")
+	W.Advance(5); eq(ForeverScribeDB.route.i, 1)
+	W.zone.posOn = { [1429] = { 0.5, 0.5 } }
+	W.Advance(1.5); eq(ForeverScribeDB.route.i, 2, "arrives via the stop's own map position")
+	-- slots not installed
+	W.slotCount = 0
+	W.Relog(true)
+	ForeverScribe.Slash("go")
+	truthy(table.concat(W.chat, "\n"):find("route slots are missing or disabled", 1, true))
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("route + npcs: read-only source (no input automation, reload, chat sends or protected calls)", function()
+	for _, f in ipairs({ "Npcs.lua", "Route.lua", "Bindings.xml" }) do
+		local src = assert(io.open(ROOT .. "addon/ForeverScribe/" .. f)):read("*a"):gsub("%-%-[^\n]*", "")
+		for _, bad in ipairs({ "MoveForward", "TurnLeft", "InteractUnit", "CastSpell", "RunScript", "loadstring", "TargetUnit",
+			"SetCVar", "ClickPosition", "CameraOrSelectOrMove", "SendChatMessage", "ReloadUI", "BuyMerchantItem", "PlaceBid" }) do
+			truthy(not src:find(bad, 1, true), f .. " uses " .. bad)
+		end
+	end
+	for i = 1, 10 do
+		local n = string.format("ForeverScribe_Route%02d", i)
+		local toc = assert(io.open(ROOT .. "addon/" .. n .. "/" .. n .. ".toc")):read("*a")
+		truthy(toc:find("## LoadOnDemand: 1", 1, true) and toc:find("## Dependencies: ForeverScribe", 1, true), n)
+		truthy(toc:find("## Interface: 16001", 1, true), n .. " interface")
+		local body = assert(io.open(ROOT .. "addon/" .. n .. "/Route.lua")):read("*a")
+		truthy(body:find("ForeverScribe_RouteData = nil", 1, true), n .. " ships empty")
+	end
+end)
+
+
 if FIXTURES then
 	dofile(ROOT .. "tests/lua/wow_stub.lua")
 	W.Reset(); W.ROOT = ROOT
@@ -922,6 +1181,20 @@ if FIXTURES then
 	W.invoices[1] = { type = "seller", item = "Linen Cloth", buyer = "Someone", bid = 0, buyout = 9000, deposit = 60, fee = 450, count = 20 }
 	W.Fire("PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 17); W.Advance(2)
 	W.WriteSV(FIXTURES .. "/sv_v3.lua")
+	-- v0.5 fixture: NPC sightings (one agrees with Wowhead, one is far off it, one Wowhead has no position for)
+	dofile(ROOT .. "tests/lua/wow_stub.lua")
+	W.Reset(); W.ROOT = ROOT
+	W.Boot(); W.Advance(30)
+	local function meet(ev, guid, name, sub, zone, map, x, y)
+		W.zone.zone, W.zone.subzone, W.zone.mapID, W.zone.x, W.zone.y = zone, "", map, x, y
+		W.units.npc = { guid = guid, name = name, sub = sub }
+		W.Fire(ev); W.units.npc = nil; W.Advance(60)
+	end
+	meet("GOSSIP_SHOW", "Creature-0-1-0-1-2327-00000001", "Shaina Fuller", "First Aid Trainer", "Stormwind City", 1453, 0.5262, 0.4491)
+	meet("TRAINER_SHOW", "Creature-0-1-0-1-2327-00000001", "Shaina Fuller", "First Aid Trainer", "Stormwind City", 1453, 0.5266, 0.4489)
+	meet("GOSSIP_SHOW", "Creature-0-1-0-1-5150-00000001", "Nissa Firestone", "First Aid Trainer", "Ironforge", 1455, 0.5010, 0.5020)
+	meet("MERCHANT_SHOW", "Creature-0-1-0-1-990001-00000001", "Quartermaster Vell", "Supplies", "Elwynn Forest", 1429, 0.4400, 0.6600)
+	W.WriteSV(FIXTURES .. "/sv_v5.lua")
 	print("\nfixtures written to " .. FIXTURES)
 end
 

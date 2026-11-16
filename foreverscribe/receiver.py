@@ -8,6 +8,8 @@ and ingested at once, so the agent sees the new state within seconds.
   POST /v1/auth-check                   -> checks the signature only, stores nothing
   POST /v1/sv/<account>                 -> ForeverScribe.lua
   POST /v1/sv/<account>/<file.lua>      -> ForeverScribe.lua or a file matching sync.extra_saved_variables
+  POST /v1/route                        -> the route the agent wrote (`foreverscribe route write`), as the slot file;
+                                           204 none, 304 when X-FS-Have names the current rev. Signed only (no legacy).
 
 Authentication: every push is signed with a per-install pairing key (see auth.py; create one
 with `foreverscribe pair`). Optional extras in [receiver]: `allow_ips` (also require the
@@ -26,7 +28,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import __version__, auth, config as C, store
+from . import __version__, auth, config as C, routes, store
 
 MAX_BYTES = 32 * 1024 * 1024
 ACCT_RE = re.compile(r"^[A-Za-z0-9#_.\-]{1,64}$")
@@ -118,6 +120,8 @@ def make_handler(S):
                     log("rejected auth-check from %s: %s" % (self.client_address[0], why))
                     return self._send(403, {"error": "forbidden", "reason": why})
                 return self._send(200, {"ok": True, "auth": why, "version": __version__})
+            if path == "/v1/route":
+                return self._route()
             m = re.match(r"^/v1/sv/([^/?]+)(?:/([^/?]+))?$", path)
             if not m:
                 return self._send(404, {"error": "not found"})
@@ -161,6 +165,46 @@ def make_handler(S):
                 acct, fname, why, len(body), res.get("status"), res.get("events_new"), ms))
             self._send(200, {"saved": True, "ingested": True, "status": res.get("status"),
                              "events_new": res.get("events_new"), "ms": ms})
+
+        def _route(self):
+            """The game-side sync agent asks for the route the agent wrote (routes.py). Signed like a push; the answer is
+            the slot file (data-only Lua) or 204 when none was written. Records the pickup for `route status`."""
+            body = self._read_body()
+            if body is None:
+                return self._send(413, {"error": "bad size"})
+            ok, why = self._authorize(body) if self.headers.get("X-FS-Sig") else (False, "unsigned (route fetches need a pairing key)")
+            if not ok:
+                log("rejected route fetch from %s: %s" % (self.client_address[0], why))
+                return self._send(403, {"error": "forbidden", "reason": why})
+            src = os.path.join(routes.route_dir(S.cfg), "Route.lua")
+            try:
+                with open(src, "rb") as f:
+                    text = f.read()
+            except OSError:
+                self.send_response(204)
+                self.end_headers()
+                return
+            m = re.search(rb'rev = "([\w.\-]+)"', text)
+            rev = m.group(1).decode() if m else ""
+            have = (self.headers.get("X-FS-Have") or "").strip()
+            if rev and have == rev:
+                self.send_response(304)
+                self.end_headers()
+                return
+            try:
+                p = os.path.join(routes.route_dir(S.cfg), "pickup.json")
+                with open(p + ".tmp", "w") as f:
+                    json.dump({"rev": rev, "at": int(time.time()), "by": why}, f)
+                os.replace(p + ".tmp", p)
+            except OSError:
+                pass
+            log("route %s fetched (%s)" % (rev or "?", why))
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("X-FS-Route-Rev", rev)
+            self.send_header("Content-Length", str(len(text)))
+            self.end_headers()
+            self.wfile.write(text)
 
     return Handler
 

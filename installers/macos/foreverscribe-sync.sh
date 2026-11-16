@@ -1,7 +1,8 @@
 #!/bin/bash
-# ForeverScribe game-side sync agent (macOS). Ships SavedVariables to wherever your agent runs.
-# Read-only towards the game: it never writes inside the WoW folder.
-# Triggered by launchd (WatchPaths on each SavedVariables folder + a 2-minute retry interval).
+# ForeverScribe game-side sync agent (macOS). Ships SavedVariables to wherever your agent runs, and brings back the
+# route your agent wrote (`foreverscribe route write`). The only thing it writes inside the WoW folder is
+# Interface/AddOns/ForeverScribe_RouteNN/Route.lua (data-only route slots, read by /fs go); nothing else.
+# Triggered by launchd (WatchPaths on each SavedVariables folder and the synced route folder + a 30-second interval).
 #
 # Settings: $SUPPORT/game.conf (written by install.sh), overridable by environment variables:
 #   WOW_DIR      the _forever_ folder
@@ -52,12 +53,12 @@ stable_and_complete() {
 }
 
 # HMAC-SHA256 request signature (same scheme as foreverscribe/auth.py).
-sign() {  # sign <ts> <path> <file>
+sign() {  # sign <ts> <path> <file> [method]
 	local sha canon key
 	key="$(cat "$KEY_FILE" 2>/dev/null)" || return 1
 	[ -n "$key" ] || return 1
 	sha=$(shasum -a 256 "$3" | awk '{print $1}')
-	canon=$(printf 'fs1\n%s\nPOST\n%s\n%s' "$1" "$2" "$sha")
+	canon=$(printf 'fs1\n%s\n%s\n%s\n%s' "$1" "${4:-POST}" "$2" "$sha")
 	printf '%s' "$canon" | openssl dgst -sha256 -hmac "$key" -hex 2>/dev/null | awk '{print $NF}'
 }
 
@@ -124,9 +125,68 @@ ship() {  # ship <acct> <name> <src>
 	fi
 }
 
+# ---- route slots (agent -> game) ----
+ADDONS="$WOW_DIR/Interface/AddOns"
+ROUTE_STATE="${FOREVERSCRIBE_ROUTE_STATE:-$SUPPORT/route-rev}"
+
+# A slot file is data only. Every line must be one of the shapes routes.py writes (strings without quotes or
+# backslashes cannot break out), so a damaged or hostile file can never put code into the game.
+ROUTE_LINE='^(-- [^[].*|ForeverScribe_RouteData = (\{|nil)|	v = [0-9]+,|	rev = "[A-Za-z0-9_.-]+",|	name = "[^"\\]*",|	created = [0-9]+,|	stops = \{|		\{ map = [0-9]+, x = [0-9.]+, y = [0-9.]+, r = [0-9]+, title = "[^"\\]*" \},|	\},|\})?$'
+valid_route() {
+	head -c 200 "$1" | grep -q '^-- ForeverScribe route slot' || return 1
+	grep -q '^ForeverScribe_RouteData = {$' "$1" || return 1
+	! LC_ALL=C grep -Evq "$ROUTE_LINE" "$1"
+}
+
+install_route() {  # install_route <file> <from>
+	local src="$1" n=0 slot dest tmp rev
+	valid_route "$src" || { log "route from $2 ignored: not a ForeverScribe route slot file"; return 1; }
+	rev=$(sed -n 's/.*rev = "\([A-Za-z0-9_.-]*\)".*/\1/p' "$src" | head -1)
+	for slot in "$ADDONS"/ForeverScribe_Route[0-9][0-9]; do
+		[ -f "$slot/$(basename "$slot").toc" ] || continue
+		dest="$slot/Route.lua"
+		cmp -s "$src" "$dest" && { n=$((n + 1)); continue; }
+		tmp="$slot/.Route.lua.tmp.$$"
+		cp "$src" "$tmp" && mv -f "$tmp" "$dest" && n=$((n + 1))
+	done
+	if [ $n -eq 0 ]; then log "route $rev from $2: no route slots in $ADDONS (install ForeverScribe 0.5 and restart WoW)"; return 1; fi
+	if [ "$(cat "$ROUTE_STATE" 2>/dev/null)" != "$rev" ]; then
+		printf '%s' "$rev" > "$ROUTE_STATE"
+		log "route $rev from $2 written to $n slots: press /fs go in game"
+	fi
+	return 0
+}
+
+fetch_route() {  # http: ask the receiver for the route (signed); 200 = new file, 304 = unchanged, 204 = none
+	local ts sig code body out have
+	body="$(mktemp "${TMPDIR:-/tmp}/fs-route-req.XXXXXX")"; out="$(mktemp "${TMPDIR:-/tmp}/fs-route.XXXXXX")"
+	printf 'route' > "$body"
+	ts=$(date +%s)
+	sig=$(sign "$ts" "/v1/route" "$body") || { rm -f "$body" "$out"; return 0; }
+	have="$(cat "$ROUTE_STATE" 2>/dev/null)"
+	code=$(curl -sS -o "$out" -w '%{http_code}' --connect-timeout 4 --max-time 15 -H "X-FS-Key: $KEY_ID" -H "X-FS-Time: $ts" \
+		-H "X-FS-Sig: $sig" -H "X-FS-Have: $have" --data-binary @"$body" "$PUSH_URL/v1/route" 2>/dev/null)
+	case "$code" in
+		200) install_route "$out" "receiver" ;;
+		403) log "receiver refused the route fetch (403): re-pair with: foreverscribe pair" ;;
+	esac
+	rm -f "$body" "$out"
+}
+
+route_pickup() {
+	[ -d "$ADDONS" ] || return 0
+	if [ -n "$FOLDER_DEST" ] && [ -f "$FOLDER_DEST/_route/Route.lua" ]; then
+		install_route "$FOLDER_DEST/_route/Route.lua" "synced folder" || true
+	fi
+	if [ -n "$PUSH_URL" ] && [ "${LEGACY_UNSIGNED:-0}" != "1" ] && [ -f "$KEY_FILE" ]; then
+		fetch_route
+	fi
+}
+
 shopt -s nullglob
 copied=0
 [ -z "$PUSH_URL" ] && [ -z "$FOLDER_DEST" ] && { [ "${1:-}" = "-v" ] && log "no transport configured (local mode): nothing to do"; exit 0; }
+route_pickup
 
 # 1) retry anything still in the spool whose source hasn't changed since (changed files are re-shipped below)
 if [ -n "$PUSH_URL" ]; then

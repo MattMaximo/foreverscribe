@@ -7,7 +7,7 @@ ForeverScribe game-side installer for Windows (the PC that plays WoW: Forever).
   (-Pair and -Folder can be combined)
 Options: -WowDir DIR   -Remind MINUTES   -Extra "ForeverForge*.lua"   -DryRun   -Uninstall
 Run from PowerShell:  powershell -ExecutionPolicy Bypass -File .\install.ps1 -Pair fs1.xxxx
-Touches only: Interface\AddOns\ForeverScribe(_Live), %LOCALAPPDATA%\ForeverScribe\, the "ForeverScribe Sync"
+Touches only: Interface\AddOns\ForeverScribe(_Live, _Route01-10), %LOCALAPPDATA%\ForeverScribe\, the "ForeverScribe Sync"
 scheduled task (at logon, your user, no admin). Undo with -Uninstall.
 #>
 param(
@@ -20,6 +20,7 @@ $Kit = if (Test-Path (Join-Path $Here "addon")) { $Here } else { (Resolve-Path (
 $Support = Join-Path $env:LOCALAPPDATA "ForeverScribe"
 $TaskName = "ForeverScribe Sync"
 $Manifest = Join-Path $Support "install-manifest.json"
+$AddonDirs = @("ForeverScribe", "ForeverScribe_Live") + (1..10 | ForEach-Object { "ForeverScribe_Route{0:D2}" -f $_ })
 
 function Say([string]$m) { Write-Host $m }
 function Do-It([string]$what, [scriptblock]$action) { if ($DryRun) { Say "  [dry-run] $what" } else { & $action } }
@@ -41,7 +42,7 @@ if ($Uninstall) {
             Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
         }
     }
-    foreach ($d in "ForeverScribe", "ForeverScribe_Live") {
+    foreach ($d in $AddonDirs) {
         $target = Join-Path $wow "Interface\AddOns\$d"
         if ((Test-Path (Join-Path $Support "installed-$d")) -and (Test-Path $target)) { Do-It "remove $target" { Remove-Item $target -Recurse -Force } }
         if ($m -and $m."backup_$d" -and (Test-Path $m."backup_$d")) { Do-It "restore $d" { Move-Item $m."backup_$d" $target } }
@@ -54,7 +55,7 @@ if ($Uninstall) {
 $wow = Find-Wow
 $addons = Join-Path $wow "Interface\AddOns"
 if (-not (Test-Path $addons)) { Say "AddOns folder not found: $addons"; Say "Pass -WowDir '<...>\World of Warcraft\_forever_'."; exit 1 }
-foreach ($d in "ForeverScribe", "ForeverScribe_Live") {
+foreach ($d in $AddonDirs) {
     if (-not (Test-Path (Join-Path $Kit "addon\$d\$d.toc"))) { Say "Kit is incomplete: missing addon\$d"; exit 1 }
 }
 
@@ -77,7 +78,7 @@ if (-not $AddonOnly -and -not $pushUrl -and -not $Folder) {
 if (Get-Process -Name "Wow*" -ErrorAction SilentlyContinue) { Say "Note: WoW is running. Fully quit and restart it to load new addons." }
 
 $ts = Get-Date -Format "yyyyMMdd-HHmmss"
-$man = [ordered]@{ installedAt = $ts; wowDir = $wow; version = "0.3.0" }
+$man = [ordered]@{ installedAt = $ts; wowDir = $wow; version = "0.5.0" }
 if (Test-Path $Manifest) {
     $old = Get-Content $Manifest -Raw | ConvertFrom-Json
     foreach ($p in $old.PSObject.Properties) { if ($p.Name -like "backup_*") { $man[$p.Name] = $p.Value } }
@@ -85,7 +86,7 @@ if (Test-Path $Manifest) {
 Do-It "create $Support" { New-Item -ItemType Directory -Force -Path $Support | Out-Null }
 
 Say "1) Addon -> $addons"
-foreach ($d in "ForeverScribe", "ForeverScribe_Live") {
+foreach ($d in $AddonDirs) {
     $target = Join-Path $addons $d
     if (Test-Path $target) {
         if (Test-Path (Join-Path $Support "installed-$d")) { Do-It "replace $target" { Remove-Item $target -Recurse -Force } }
@@ -159,4 +160,5 @@ if ($pushUrl -and -not $DryRun) {
 Say ""
 Say "Done. Next: fully quit and restart WoW, check 'ForeverScribe' is enabled at character select,"
 Say "log in, /scribe status, then /reload. Your agent sees it within a minute ('foreverscribe summary')."
+Say "Routes: when your agent writes one, press /fs go (bind it under Keybindings > AddOns > ForeverScribe)."
 Say "Undo everything with: powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall"

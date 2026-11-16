@@ -9,6 +9,8 @@
 - Never add: network, chat output beyond `Print`, chat capture beyond the auction format-string match, protected
   calls, input automation, `ReloadUI`, AH queries, buy/sell/post/mail actions. `tests/lua/test_addon.lua` greps the
   addon source for the obvious ones.
+- Exceptions to "never write towards the game" are deliberate and narrow: the companion/sync agent may rewrite only
+  `Interface/AddOns/ForeverScribe_RouteNN/Route.lua` (data-only route slots), and only the player's `/fs go` loads it.
 - `foreverscribe/` — Python 3.8+ standard library only (macOS ships 3.9). Config parsing falls back to a small TOML
   subset parser when `tomllib` (3.11+) is missing.
 
@@ -46,5 +48,11 @@ tools/build_dist.sh                  # dist/ForeverScribe-<ver>-macos.zip, -wind
 ```
 
 Bump the version in three places together: `addon/ForeverScribe/ForeverScribe.toc`, `addon/ForeverScribe/Core.lua`
-(`FS.VERSION`), `foreverscribe/__init__.py` (the build refuses a mismatch). A TOC file-list change needs a full game
-restart, not just `/reload`.
+(`FS.VERSION`), `foreverscribe/__init__.py` (the build refuses a mismatch); also the route slot TOCs
+(`addon/ForeverScribe_RouteNN/*.toc`, `## Version`) and the installers' manifest `version=`. A TOC file-list change
+or a new addon folder needs a full game restart, not just `/reload`.
+
+Route slots: `addon/ForeverScribe_Route01-10` ship with an empty `Route.lua`; never commit a written route there.
+The slot file format is defined once in `foreverscribe/routes.py` (`render_lua`) and checked line by line by both
+sync agents (`ROUTE_LINE` / `$RouteLine`): change all three together. `tests/lua/route_e2e.lua` boots the simulated
+client against a slot folder for the Python tests.

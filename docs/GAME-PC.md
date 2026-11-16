@@ -33,17 +33,23 @@ The sync agent runs as a per-user scheduled task ("ForeverScribe Sync", at logon
 
 ## After installing
 
-1. Fully quit and restart WoW.
-2. At character select → AddOns, make sure **ForeverScribe** is enabled.
+1. Fully quit and restart WoW (needed once: new addon folders are only found at launch).
+2. At character select → AddOns, make sure **ForeverScribe** is enabled, including its ten "route slot" entries
+   grouped under it (leave ForeverScribe Live off).
 3. Log in, type `/scribe status`, then `/reload`. Your agent sees it within a minute.
 
-In-game commands (`/scribe` or `/fs`): `status | last [n] | snapshot | errors | remind <min>|off | played on|off | live on|off | way <x> <y> [zone] [title]` (map pin + arrow; `way clear`).
+In-game commands (`/scribe` or `/fs`): `status | last [n] | snapshot | errors | remind <min>|off | played on|off | live on|off | way <x> <y> [zone] [title]` (map pin + arrow; `way clear`) | `npcs` (NPCs noted; `npcs target off`).
+
+Routes from your agent: `/fs go` loads the route it wrote (arrow to each stop, next stop on arrival), `/fs next`,
+`/fs back`, `/fs route` (list), `/fs route clear`. Bind `/fs go` and "next stop" under Esc > Options > Keybindings >
+AddOns > ForeverScribe. `/fs go` works 10 times per session; `/reload` resets that and keeps your place.
 
 ## What it touches
 
-- `Interface/AddOns/ForeverScribe` and `ForeverScribe_Live` (an existing folder with that name is backed up first
-  and restored on uninstall).
+- `Interface/AddOns/ForeverScribe`, `ForeverScribe_Live` and `ForeverScribe_Route01`…`10` (an existing folder with
+  that name is backed up first and restored on uninstall).
 - macOS: `~/Library/Application Support/ForeverScribe/` and `~/Library/LaunchAgents/io.foreverscribe.sync.plist`.
 - Windows: `%LOCALAPPDATA%\ForeverScribe\` and the "ForeverScribe Sync" scheduled task.
 - It reads `WTF/Account/*/SavedVariables/ForeverScribe.lua` (plus files listed in `--extra`, default
-  `ForeverForge*.lua`) and never writes inside the WoW folder.
+  `ForeverForge*.lua`). The only thing it writes inside the WoW folder is `ForeverScribe_RouteNN/Route.lua` when
+  your agent sends a route (checked line by line: plain data, never code).

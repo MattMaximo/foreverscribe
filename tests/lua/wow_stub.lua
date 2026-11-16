@@ -518,10 +518,24 @@ C_TradeSkillUI.GetRecipeCooldown = function(rid) local c = W.recipeCooldowns[rid
 
 -- Addon loading -----------------------------------------------------------
 W.ROOT = W.ROOT or "./"
-W.ADDONS = {
-	ForeverScribe = { "Util.lua", "Defaults.lua", "Collect.lua", "Core.lua", "Waypoint.lua" },
-	ForeverScribe_Live = { "Codec.lua", "Live.lua" },
-}
+-- file lists come from the TOCs, like the client
+local function tocFiles(name)
+	local f = io.open(W.ROOT .. "addon/" .. name .. "/" .. name .. ".toc")
+	if not f then return nil end
+	local out = {}
+	for line in f:lines() do
+		line = line:gsub("%s+$", "")
+		if line ~= "" and not line:match("^#") then out[#out + 1] = line end
+	end
+	f:close()
+	return out
+end
+W.ADDONS = setmetatable({}, { __index = function(t, name)
+	if name ~= "ForeverScribe" and name ~= "ForeverScribe_Live" then return nil end
+	local files = tocFiles(name)
+	rawset(t, name, files)
+	return files
+end })
 function W.LoadAddonFiles(name)
 	for _, f in ipairs(W.ADDONS[name]) do
 		local chunk, err = loadfile(W.ROOT .. "addon/" .. name .. "/" .. f)
@@ -603,6 +617,11 @@ function W.Relog(isReload, opts)
 	local text = W.SerializeSV("ForeverScribeDB", ForeverScribeDB)
 	if opts.svPath then local f = assert(io.open(opts.svPath, "w")); f:write(text); f:close() end
 	W.frames, W.timers, W.addonsLoaded = {}, {}, {}
+	if W.slotsLoaded then -- /reload unloads load-on-demand addons; the next load reads the file again
+		for k in pairs(W.slotsLoaded) do W.loadedByName[k] = nil end
+		W.slotsLoaded, W.tickers = {}, {}
+	end
+	ForeverScribe_RouteData = nil
 	ForeverScribe, ForeverScribe_Codec, ForeverScribeDB = nil, nil, nil
 	if not opts.svLoadBug then
 		local chunk = assert(loadstring(text))
@@ -624,6 +643,7 @@ do -- v0.3 additions live next to this file
 	local here = (debug.getinfo(1, "S").source or ""):match("^@(.*/)") or "tests/lua/"
 	dofile(here .. "wow_stub_v3.lua")
 	dofile(here .. "wow_stub_way.lua")
+	dofile(here .. "wow_stub_npc.lua")
 end
 
 return W

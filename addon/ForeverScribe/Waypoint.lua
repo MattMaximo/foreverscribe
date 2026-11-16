@@ -293,7 +293,7 @@ function Way.Set(r)
 	return true
 end
 
-function Way.Clear()
+function Way.Clear(quiet)
 	Call("C_Map.ClearUserWaypoint")
 	Call("C_SuperTrack.SetSuperTrackedUserWaypoint", false)
 	local api = polestarAPI()
@@ -301,7 +301,7 @@ function Way.Clear()
 	local tt = tomtom()
 	if tt and tomtomUid and type(tt.RemoveWaypoint) == "function" then Try(tt.RemoveWaypoint, tt, tomtomUid) end
 	tomtomUid = nil
-	Print("waypoint cleared")
+	if not quiet then Print("waypoint cleared") end
 end
 
 -- /scribe way ... (rawArgs keeps the title's case)
