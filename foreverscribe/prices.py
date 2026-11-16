@@ -322,8 +322,13 @@ def write(cfg=None, want="auto", market=None, force=False, now=None, log=None):
             else:
                 notes.append("%s is not installed in %s: install ForeverScribe 0.6 there and restart the game" % (ADDON, os.path.dirname(path)))
         else:
-            put(path)
-            done.append({"transport": kind, "path": path})
+            try:
+                put(path)
+                done.append({"transport": kind, "path": path})
+            except OSError as e:  # one unwritable target (e.g. a cloud folder a background agent may not touch)
+                notes.append("%s copy not written (%s): %s" % (kind, path, e))  # must not block the others
+                if log:
+                    log("prices: %s copy skipped: %s" % (kind, e))
     if receiver_copy(cfg) not in [d["path"] for d in done]:
         put(receiver_copy(cfg))  # the receiver serves this copy (http mode); also `prices status`
     st.update(written_at=now, written_to=done, notes=notes, fetched=fresh, scan=snap.get("capturedAt"),
