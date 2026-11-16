@@ -1,0 +1,81 @@
+# ForeverScribe configuration. Copy to:
+#   macOS/Linux: ~/.config/foreverscribe/config.toml
+#   Windows:     %APPDATA%\foreverscribe\config.toml
+# or let `foreverscribe setup` write it. This file lives OUTSIDE the repository: your paths,
+# keys and character names never go into git. Every key is optional.
+
+# Where the database, caches, pushed files and pairing keys live.
+# Default: ~/.local/share/foreverscribe (macOS/Linux), %LOCALAPPDATA%\foreverscribe (Windows).
+data_dir = ""
+
+# Character to answer about when none is named ("Name" or "Realm:Name"). Default: most recently played.
+default_character = ""
+
+[transport]
+# How SavedVariables reach this (agent) computer:
+#   local  - WoW runs on this computer; read WTF/Account/*/SavedVariables directly
+#   folder - the game computer copies them into a synced folder (iCloud Drive, Dropbox, OneDrive,
+#            Google Drive, Syncthing ...); set `folder` below to that folder as seen from here
+#   http   - the game computer pushes each save to this computer's receiver ([receiver] below)
+mode = "local"
+folder = ""
+
+[wow]
+# The _forever_ folder (mode local). Empty = look in the usual install locations.
+dir = ""
+# Limit to these WTF/Account folder names. Empty = every account found.
+accounts = []
+
+[receiver]
+# Only for mode http. Bind to a private address: 127.0.0.1 (behind your own tunnel), a LAN IP,
+# or a Tailscale/WireGuard IP. Pushes must carry a pairing-key signature (`foreverscribe pair`).
+bind = "127.0.0.1"
+port = 8766
+# The URL the game computer uses to reach this receiver (put in the pairing code).
+# Default http://<bind>:<port>. For a tunnel: "https://scribe.example.com".
+public_url = ""
+# Optional extra: also require the pushing computer's address to be one of these.
+allow_ips = []
+# Migration only: accept UNSIGNED pushes from these addresses (an older v0.2 game-side kit on a
+# private network). Remove once every game computer runs the 0.3 kit.
+legacy_unsigned_ips = []
+# Where pairing keys are stored. Default <data_dir>/receiver-keys.json (mode 600).
+keys_file = ""
+max_skew_seconds = 600
+
+[sync]
+# Other addons' SavedVariables to ship and keep alongside ForeverScribe (stored raw, unparsed,
+# until a parser exists). Simple file-name globs only. Shown by `foreverscribe files`.
+extra_saved_variables = ["ForeverForge*.lua"]
+
+[sources]
+# Extra folders/files to ingest (for example a folder you copy files into by hand).
+extra = []
+# Where the optional live pixel-strip capture writes JSONL (macOS only, advanced).
+live_dir = ""
+
+[pull]
+# Optional: `foreverscribe pull` copies SavedVariables from the game computer over SSH.
+ssh_host = ""
+ssh_command = "ssh -o BatchMode=yes -o ConnectTimeout=8"
+remote_account_dir = "/Applications/World of Warcraft/_forever_/WTF/Account"
+
+[ah]
+# Auction-house prices via wow.gg (data by AHledger). OFF by default, on purpose: wow.gg has no
+# public API; its site calls a backend with a key embedded in its own front-end. Turning this on
+# is your call. If you do: set enabled = true, paste the key from the wow.gg page, set your market
+# (for example "forever.pvp.alliance.us" or "forever.normal.horde.eu"). Keep it low-volume (30 min cache).
+enabled = false
+wowgg_key = ""
+market = ""
+
+[wowhead]
+# Wowhead Forever cache (tooltips, parsed pages). Default <data_dir>/wowhead-cache.
+cache_dir = ""
+# Where agent-fetched page markdown is stored (`foreverscribe wowhead import-page`). Default <cache_dir>/imported.
+page_dir = ""
+# More folders holding www.wowhead.com-*.md copies (Hermes' web_extract cache ~/.hermes/cache/web is always read).
+extra_page_dirs = []
+
+[summary]
+max_lines = 40

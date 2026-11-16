@@ -1,0 +1,6 @@
+#!/bin/sh
+# ForeverScribe CLI. Python 3.8+ standard library only; no install step needed.
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+PY="${FOREVERSCRIBE_PYTHON:-$(command -v python3 || command -v python)}"
+[ -n "$PY" ] || { echo "foreverscribe needs Python 3.8+ (python3 not found)" >&2; exit 127; }
+PYTHONPATH="$HERE${PYTHONPATH:+:$PYTHONPATH}" exec "$PY" -m foreverscribe "$@"

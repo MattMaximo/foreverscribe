@@ -1,0 +1,12 @@
+## Interface: 16001
+## Title: ForeverScribe
+## Notes: Read-only character journal for your AI agent: snapshot + event log in SavedVariables. No network, no automation; the only chat read is auction-outcome system lines.
+## Author: ForeverScribe contributors
+## Version: 0.3.0
+## SavedVariables: ForeverScribeDB
+## OptionalDeps: ForeverScribe_Live
+
+Util.lua
+Defaults.lua
+Collect.lua
+Core.lua

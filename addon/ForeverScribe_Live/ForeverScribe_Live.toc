@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: ForeverScribe Live
+## Notes: Optional. Shows recent ForeverScribe events as a tiny pixel strip in the top-left corner while /scribe live on. Load-on-demand; does nothing until enabled.
+## Author: ForeverScribe contributors (pixel codec from chelinho139/wow-ai, MIT)
+## Version: 0.3.0
+## Dependencies: ForeverScribe
+## LoadOnDemand: 1
+
+Codec.lua
+Live.lua
