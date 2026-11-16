@@ -7,7 +7,7 @@ ForeverScribe game-side installer for Windows (the PC that plays WoW: Forever).
   (-Pair and -Folder can be combined)
 Options: -WowDir DIR   -Remind MINUTES   -Extra "ForeverForge*.lua"   -DryRun   -Uninstall
 Run from PowerShell:  powershell -ExecutionPolicy Bypass -File .\install.ps1 -Pair fs1.xxxx
-Touches only: Interface\AddOns\ForeverScribe(_Live, _Route01-10), %LOCALAPPDATA%\ForeverScribe\, the "ForeverScribe Sync"
+Touches only: Interface\AddOns\ForeverScribe(_Live, _Prices, _Route01-10), %LOCALAPPDATA%\ForeverScribe\, the "ForeverScribe Sync"
 scheduled task (at logon, your user, no admin). Undo with -Uninstall.
 #>
 param(
@@ -20,7 +20,7 @@ $Kit = if (Test-Path (Join-Path $Here "addon")) { $Here } else { (Resolve-Path (
 $Support = Join-Path $env:LOCALAPPDATA "ForeverScribe"
 $TaskName = "ForeverScribe Sync"
 $Manifest = Join-Path $Support "install-manifest.json"
-$AddonDirs = @("ForeverScribe", "ForeverScribe_Live") + (1..10 | ForEach-Object { "ForeverScribe_Route{0:D2}" -f $_ })
+$AddonDirs = @("ForeverScribe", "ForeverScribe_Live", "ForeverScribe_Prices") + (1..10 | ForEach-Object { "ForeverScribe_Route{0:D2}" -f $_ })
 
 function Say([string]$m) { Write-Host $m }
 function Do-It([string]$what, [scriptblock]$action) { if ($DryRun) { Say "  [dry-run] $what" } else { & $action } }
@@ -78,7 +78,7 @@ if (-not $AddonOnly -and -not $pushUrl -and -not $Folder) {
 if (Get-Process -Name "Wow*" -ErrorAction SilentlyContinue) { Say "Note: WoW is running. Fully quit and restart it to load new addons." }
 
 $ts = Get-Date -Format "yyyyMMdd-HHmmss"
-$man = [ordered]@{ installedAt = $ts; wowDir = $wow; version = "0.5.0" }
+$man = [ordered]@{ installedAt = $ts; wowDir = $wow; version = "0.6.0" }
 if (Test-Path $Manifest) {
     $old = Get-Content $Manifest -Raw | ConvertFrom-Json
     foreach ($p in $old.PSObject.Properties) { if ($p.Name -like "backup_*") { $man[$p.Name] = $p.Value } }
@@ -161,4 +161,5 @@ Say ""
 Say "Done. Next: fully quit and restart WoW, check 'ForeverScribe' is enabled at character select,"
 Say "log in, /scribe status, then /reload. Your agent sees it within a minute ('foreverscribe summary')."
 Say "Routes: when your agent writes one, press /fs go (bind it under Keybindings > AddOns > ForeverScribe)."
+Say "AH prices: if your agent has them on, item tooltips show them after the next login or /reload (/scribe tooltip)."
 Say "Undo everything with: powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall"

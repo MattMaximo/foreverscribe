@@ -39,6 +39,11 @@ def settings(cfg=None):
             "cache": os.path.join(cfg.data_dir, "ah-cache")}
 
 
+def headers(key):
+    return {"Accept": "application/json", "X-API-Key": key, "Origin": "https://wow.gg",
+            "Referer": "https://wow.gg/auction-house/forever", "User-Agent": "Mozilla/5.0 (ForeverScribe personal)"}
+
+
 def _get(s, params):
     os.makedirs(s["cache"], exist_ok=True)
     qs = urllib.parse.urlencode(params)
@@ -46,9 +51,7 @@ def _get(s, params):
     if os.path.exists(p) and time.time() - os.path.getmtime(p) < TTL:
         with open(p) as f:
             return json.load(f)
-    headers = {"Accept": "application/json", "X-API-Key": s["key"], "Origin": "https://wow.gg",
-               "Referer": "https://wow.gg/auction-house/forever", "User-Agent": "Mozilla/5.0 (ForeverScribe personal)"}
-    req = urllib.request.Request(BASE + "?" + qs, headers=headers)
+    req = urllib.request.Request(BASE + "?" + qs, headers=headers(s["key"]))
     with urllib.request.urlopen(req, timeout=20) as r:
         d = json.load(r)
     with open(p, "w") as f:

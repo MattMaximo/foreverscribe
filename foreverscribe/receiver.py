@@ -10,6 +10,9 @@ and ingested at once, so the agent sees the new state within seconds.
   POST /v1/sv/<account>/<file.lua>      -> ForeverScribe.lua or a file matching sync.extra_saved_variables
   POST /v1/route                        -> the route the agent wrote (`foreverscribe route write`), as the slot file;
                                            204 none, 304 when X-FS-Have names the current rev. Signed only (no legacy).
+  POST /v1/prices                       -> the AH price file (`foreverscribe prices write`) for the tooltip; same
+                                           204/304 rules. Each ask also refreshes the file in the background when it
+                                           is older than 30 minutes (only with [ah] enabled).
 
 Authentication: every push is signed with a per-install pairing key (see auth.py; create one
 with `foreverscribe pair`). Optional extras in [receiver]: `allow_ips` (also require the
@@ -28,7 +31,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import __version__, auth, config as C, routes, store
+from . import __version__, auth, config as C, prices, routes, store
 
 MAX_BYTES = 32 * 1024 * 1024
 ACCT_RE = re.compile(r"^[A-Za-z0-9#_.\-]{1,64}$")
@@ -122,6 +125,8 @@ def make_handler(S):
                 return self._send(200, {"ok": True, "auth": why, "version": __version__})
             if path == "/v1/route":
                 return self._route()
+            if path == "/v1/prices":
+                return self._prices()
             m = re.match(r"^/v1/sv/([^/?]+)(?:/([^/?]+))?$", path)
             if not m:
                 return self._send(404, {"error": "not found"})
@@ -202,6 +207,49 @@ def make_handler(S):
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.send_header("X-FS-Route-Rev", rev)
+            self.send_header("Content-Length", str(len(text)))
+            self.end_headers()
+            self.wfile.write(text)
+
+        def _prices(self):
+            """The sync agent asks for the AH price file (prices.py). Signed like a route fetch."""
+            body = self._read_body()
+            if body is None:
+                return self._send(413, {"error": "bad size"})
+            ok, why = self._authorize(body) if self.headers.get("X-FS-Sig") else (False, "unsigned (price fetches need a pairing key)")
+            if not ok:
+                log("rejected price fetch from %s: %s" % (self.client_address[0], why))
+                return self._send(403, {"error": "forbidden", "reason": why})
+            try:
+                prices.refresh_async(S.cfg, log=log)
+            except Exception as e:  # never fail the fetch over a refresh problem
+                log("prices: refresh not started: %s" % e)
+            src = prices.receiver_copy(S.cfg)
+            try:
+                with open(src, "rb") as f:
+                    text = f.read()
+            except OSError:
+                self.send_response(204)
+                self.end_headers()
+                return
+            m = re.search(rb'\trev = "([\w.\-]+)"', text[:4096])
+            rev = m.group(1).decode() if m else ""
+            have = (self.headers.get("X-FS-Have") or "").strip()
+            if rev and have == rev:
+                self.send_response(304)
+                self.end_headers()
+                return
+            try:
+                p = os.path.join(prices.price_dir(S.cfg), "pickup.json")
+                with open(p + ".tmp", "w") as f:
+                    json.dump({"rev": rev, "at": int(time.time()), "by": why}, f)
+                os.replace(p + ".tmp", p)
+            except OSError:
+                pass
+            log("prices %s fetched (%s, %d bytes)" % (rev or "?", why, len(text)))
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("X-FS-Prices-Rev", rev)
             self.send_header("Content-Length", str(len(text)))
             self.end_headers()
             self.wfile.write(text)

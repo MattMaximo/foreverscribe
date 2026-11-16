@@ -1,7 +1,8 @@
 <#
 ForeverScribe game-side sync agent (Windows). Ships SavedVariables to wherever your agent runs, and brings back the
-route your agent wrote (`foreverscribe route write`). The only thing it writes inside the WoW folder is
-Interface\AddOns\ForeverScribe_RouteNN\Route.lua (data-only route slots, read by /fs go); nothing else.
+route and AH prices your agent wrote (`foreverscribe route write`, `foreverscribe prices write`). The only things it
+writes inside the WoW folder are Interface\AddOns\ForeverScribe_RouteNN\Route.lua (data-only route slots, read by
+/fs go) and Interface\AddOns\ForeverScribe_Prices\Prices.lua (data-only price file); nothing else.
 
   foreverscribe-sync.ps1            one pass (ship anything new, retry the spool)
   foreverscribe-sync.ps1 -Watch     keep running: check every 10 s (what the logon task runs)
@@ -180,10 +181,77 @@ function Route-Pickup($c) {
     }
 }
 
+# ---- prices (agent -> game) ----
+# `foreverscribe prices write` makes Interface\AddOns\ForeverScribe_Prices\Prices.lua: data only, read by the game at
+# login and /reload for the AH price tooltip. Same rules as a route slot: every line must match $PriceLine.
+$PriceLine = '^(-- [^\[].*|ForeverScribe_PriceData = (\{|nil)|\t(v|captured|written|items) = [0-9]+,|\t(rev|market|label|other|source) = "[A-Za-z0-9 _.-]*",|\t[dp] = \{|\t\t\[[0-9]+\] = "[0-9,:;]*",|\t\},|\})?$'
+$PriceStamp = Join-Path $Support "prices-checked"
+$PriceEvery = 300   # ask the receiver at most every 5 minutes
+$PriceMax = 1048576
+
+function Valid-Prices([string]$text) {
+    if ($text.Length -gt $PriceMax) { return $false }
+    $lines = $text -split "`n"
+    if (-not $lines[0].StartsWith("-- ForeverScribe prices")) { return $false }
+    if (-not ($lines -contains "ForeverScribe_PriceData = {")) { return $false }
+    if (-not $text.TrimEnd().EndsWith("}")) { return $false }
+    foreach ($l in $lines) { if ($l -cnotmatch $PriceLine) { return $false } }
+    return $true
+}
+
+function Price-Rev([string]$path) {
+    if (-not (Test-Path $path)) { return "" }
+    $m = Select-String -Path $path -Pattern '^\trev = "([A-Za-z0-9_.-]+)",$' -CaseSensitive | Select-Object -First 1
+    if ($m) { return $m.Matches[0].Groups[1].Value } else { return "" }
+}
+
+function Install-Prices($c, [string]$text, [string]$from) {
+    $text = $text -replace "`r", ""
+    $dir = Join-Path $c.wowDir "Interface\AddOns\ForeverScribe_Prices"
+    if (-not (Test-Path (Join-Path $dir "ForeverScribe_Prices.toc"))) { return }
+    $dest = Join-Path $dir "Prices.lua"
+    if ((Test-Path $dest) -and ((Get-Content $dest -Raw) -replace "`r", "") -ceq $text) { return }
+    if (-not (Valid-Prices $text)) { Log "prices from $from ignored: not a ForeverScribe price file"; return }
+    [System.IO.File]::WriteAllText("$dest.tmp", $text, (New-Object System.Text.UTF8Encoding $false))
+    Move-Item "$dest.tmp" $dest -Force
+    Log "prices $(Price-Rev $dest) from $from written ($($text.Length) bytes): they load at your next login or /reload"
+}
+
+function Prices-Pickup($c) {
+    $dir = Join-Path $c.wowDir "Interface\AddOns\ForeverScribe_Prices"
+    if (-not (Test-Path (Join-Path $dir "ForeverScribe_Prices.toc"))) { return }
+    if ($c.folderDest) {
+        $f = Join-Path $c.folderDest "_prices\Prices.lua"
+        if (Test-Path $f) { Install-Prices $c (Get-Content $f -Raw) "synced folder" }
+    }
+    if ($c.pushUrl -and (Test-Path $KeyPath)) {
+        $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $last = 0
+        if (Test-Path $PriceStamp) { [long]::TryParse((Get-Content $PriceStamp -Raw).Trim(), [ref]$last) | Out-Null }
+        $have = Price-Rev (Join-Path $dir "Prices.lua")
+        if ($have -and ($now - $last) -lt $PriceEvery) { return }
+        Set-Content -Path $PriceStamp -Value "$now" -NoNewline -Encoding ASCII
+        $key = (Get-Content $KeyPath -Raw).Trim()
+        $body = [System.Text.Encoding]::UTF8.GetBytes("prices")
+        $headers = @{ "X-FS-Key" = [string]$c.keyId; "X-FS-Time" = "$now"; "X-FS-Sig" = (Sign $key $now "/v1/prices" $body); "X-FS-Have" = $have }
+        try {
+            $r = Invoke-WebRequest -Uri ($c.pushUrl + "/v1/prices") -Method Post -Body $body -Headers $headers `
+                -ContentType "application/octet-stream" -TimeoutSec 60 -UseBasicParsing
+            if ($r.StatusCode -eq 200) {
+                $text = if ($r.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($r.Content) } else { [string]$r.Content }
+                Install-Prices $c $text "receiver"
+            }
+        } catch {
+            if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 403) { Log "receiver refused the price fetch (403): re-pair with: foreverscribe pair" }
+        }
+    }
+}
+
 function Pass {
     $c = Load-Conf
     if (-not $c.pushUrl -and -not $c.folderDest) { if ($VerboseLog) { Log "no transport configured (local mode)" }; return }
     Route-Pickup $c
+    Prices-Pickup $c
     $accounts = Join-Path $c.wowDir "WTF\Account"
     if ($c.pushUrl -and (Test-Path $SpoolDir)) {
         foreach ($s in Get-ChildItem $SpoolDir -Recurse -Filter *.lua -File) {

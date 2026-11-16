@@ -695,7 +695,7 @@ test("v3 reminder default comes from the installer's Defaults.lua", function()
 end)
 
 test("v3 addon source never calls ReloadUI, protected AH or buy/sell functions", function()
-	for _, f in ipairs({ "Util.lua", "Defaults.lua", "Collect.lua", "Core.lua", "Waypoint.lua" }) do
+	for _, f in ipairs({ "Util.lua", "Defaults.lua", "Collect.lua", "Core.lua", "Waypoint.lua", "Npcs.lua", "Route.lua", "Tooltip.lua" }) do
 		local fh = assert(io.open(ROOT .. "addon/ForeverScribe/" .. f)); local src = fh:read("*a"); fh:close()
 		src = src:gsub("%-%-[^\n]*", "") -- comments may mention them
 		for _, bad in ipairs({ "ReloadUI", "QueryOwnedAuctions", "PostItem", "PostCommodity", "PlaceBid", "BuyMerchantItem",
@@ -1138,6 +1138,175 @@ test("route + npcs: read-only source (no input automation, reload, chat sends or
 	end
 end)
 
+
+
+---------------------------------------------------------------------------
+-- v0.6 AH price tooltip (tests/lua/wow_stub_tip.lua simulates the item tooltip)
+---------------------------------------------------------------------------
+local function FS() return ForeverScribe end
+local function tip(iid, opts) W.Hover(iid, opts); return W.TipText(opts and opts.tip) end
+local function has(lines, s) for _, l in ipairs(lines) do if l == s then return true end end return false end
+local function show(lines) return "\n  " .. table.concat(lines, "\n  ") end
+local function withRecipes()
+	C().recipes = { Tailoring = { count = 3, scannedAt = W.time, recipes = {
+		[1] = { name = "Silky Gown", reagents = { { itemID = 4305, qty = 12 } } },
+		[2] = { name = "Silky Leggings", reagents = { { itemID = 4305, qty = 14 }, { itemID = 4291, qty = 2 } } },
+		[3] = { name = "Azure Silk Hood", reagents = { { itemID = 4305, qty = 2 } } } } } }
+end
+
+test("v6 tooltip default: header with market + age, typical price, stack worth, shift hint; nothing else", function()
+	W.Prices(); W.Boot()
+	eq(FS().Tooltip.hooked, "TooltipDataProcessor")
+	local l = tip(4305)
+	local want = { "Auction House | PvP Alliance · 14m ago", "Typical price | 8s 68c", "Your 12 are worth | 1g 4s 16c", "Hold Shift for details" }
+	eq(#l, #want, show(l))
+	for i, w in ipairs(want) do eq(l[i], w, show(l)) end
+	eq(FS().errors or 0, 0, tostring(FS().lastError))
+end)
+
+test("v6 tooltip with Shift: listings, 7/30-day with trend, other faction, sell-or-vendor, used in", function()
+	W.Prices(); W.Boot(); withRecipes(); W.shift = true
+	local l = tip(4305)
+	for _, w in ipairs({ "Typical price | 8s 68c", "Your 12 are worth | 1g 4s 16c", "Cheapest listing | 8s 49c", "Listed right now | 585",
+		"7-day typical | 8s 79c", "30-day typical | 9s 32c  ▼ 7%", "Horde side | 8s 30c", "Sell here or vendor? | AH +45% vs vendor",
+		"Used in | Azure Silk Hood (2) · Silky Gown (12) · …" }) do
+		truthy(has(l, w), "missing '" .. w .. "'" .. show(l))
+	end
+	truthy(not has(l, "Hold Shift for details"), show(l))
+	-- rising price: green up arrow; a single owned item reads "Yours is worth"
+	W.bags[0][6] = { itemID = 5000, count = 1 }
+	l = tip(5000)
+	truthy(has(l, "30-day typical | 77s 46c  ▲ 27%"), show(l)); truthy(has(l, "Yours is worth | 98s"), show(l))
+	eq(FS().errors or 0, 0, tostring(FS().lastError))
+end)
+
+test("v6 tooltip never shows a vendor price line, known/unknown recipe or an upgrade verdict", function()
+	W.Prices(); W.Boot(); withRecipes()
+	for _, shift in ipairs({ false, true }) do
+		W.shift = shift
+		for _, iid in ipairs({ 4305, 10302, 10303, 5000 }) do
+			for _, line in ipairs(tip(iid)) do
+				local low = line:lower()
+				truthy(not low:find("vendor price", 1, true) and not low:find("sell price", 1, true) and not low:find("sells to vendor", 1, true), line)
+				truthy(not low:find("known", 1, true) and not low:find("upgrade", 1, true) and not low:find("for you", 1, true), line)
+			end
+		end
+	end
+end)
+
+test("v6 tooltip on a pattern: typical, crafted item sells for, materials cost", function()
+	W.Prices(); W.Boot()
+	local l = tip(10302)
+	local want = { "Auction House | PvP Alliance · 14m ago", "Typical price | 1g 25s", "Crafted item sells for | 2g 10s",
+		"Materials cost | 27s 4c + 1 not on AH", "Hold Shift for trend & supply" }
+	eq(#l, #want, show(l))
+	for i, w in ipairs(want) do eq(l[i], w, show(l)) end
+	W.shift = true
+	l = tip(10302)
+	truthy(has(l, "Listed right now | 3"), show(l)); truthy(has(l, "30-day typical | 1g 18s  ▲ 6%"), show(l))
+	truthy(not has(l, "Hold Shift for trend & supply"), show(l))
+end)
+
+test("v6 tooltip on soulbound / quest items and items without data: a dash and the reason", function()
+	W.Prices(); W.Boot()
+	local l = tip(2804, { soulbound = true })
+	eq(#l, 3, show(l)); eq(l[1], "Auction House | PvP Alliance"); eq(l[2], "Typical price | —"); eq(l[3], "Soulbound · can't be listed")
+	l = tip(7000)
+	eq(l[2], "Typical price | —", show(l)); eq(l[3], "Quest item · can't be listed")
+	W.items[5001] = { name = "Unlisted Thing", quality = 1, sell = 10 }
+	l = tip(5001)
+	eq(#l, 3, show(l)); eq(l[1], "Auction House | PvP Alliance · 14m ago"); eq(l[2], "Typical price | —"); eq(l[3], "No recent listings")
+	eq(FS().errors or 0, 0, tostring(FS().lastError))
+end)
+
+test("v6 typical price uses the large font; the tooltip's fonts are restored when it clears", function()
+	W.Prices(); W.Boot()
+	tip(4305)
+	local n
+	for i, line in ipairs(GameTooltip.lines) do if line.left == "Typical price" then n = i end end
+	eq(_G["GameTooltipTextLeft" .. n].font, "GameTooltipHeaderText"); eq(_G["GameTooltipTextRight" .. n].font, "GameTooltipHeaderText")
+	eq(_G["GameTooltipTextLeft" .. (n + 1)].font, "GameTooltipText")
+	GameTooltip:ClearLines()
+	eq(_G["GameTooltipTextLeft" .. n].font, "GameTooltipText")
+end)
+
+test("v6 tooltip lines go in once per tooltip build; Shift re-asks only tooltips nobody refreshes", function()
+	W.Prices(); W.Boot()
+	tip(4305)
+	local n = GameTooltip:NumLines()
+	for _, pc in ipairs(W.postCalls) do pc[2](GameTooltip, { type = 0, id = 4305, lines = {} }) end
+	eq(GameTooltip:NumLines(), n, "second post-call in the same build adds nothing")
+	W.shift = true; W.Fire("MODIFIER_STATE_CHANGED", "LSHIFT", 1)
+	eq(W.refreshes, 1); truthy(has(W.TipText(), "Cheapest listing | 8s 49c"))
+	W.shift = false; W.Fire("MODIFIER_STATE_CHANGED", "LSHIFT", 0)
+	eq(W.refreshes, 2); truthy(has(W.TipText(), "Hold Shift for details"))
+	-- a bag slot refreshes its own tooltip every 0.2 s: we leave it alone
+	tip(4305, { owner = { UpdateTooltip = function() end } })
+	W.shift = true; W.Fire("MODIFIER_STATE_CHANGED", "LSHIFT", 1)
+	eq(W.refreshes, 2)
+	-- other keys and combat: never
+	W.Fire("MODIFIER_STATE_CHANGED", "LCTRL", 1); eq(W.refreshes, 2)
+	W.combat = true; tip(4305); W.shift = false; W.Fire("MODIFIER_STATE_CHANGED", "LSHIFT", 0); eq(W.refreshes, 2)
+	-- a hidden or cleared tooltip is never touched
+	W.combat = false; GameTooltip:Hide(); W.shift = true; W.Fire("MODIFIER_STATE_CHANGED", "LSHIFT", 1); eq(W.refreshes, 2)
+end)
+
+test("v6 /scribe tooltip on|off|shift is saved and respected", function()
+	W.Prices(); W.Boot()
+	SlashCmdList.FOREVERSCRIBE("tooltip off")
+	eq(ForeverScribeDB.settings.tooltip, "off"); eq(#tip(4305), 0)
+	truthy(W.chat[#W.chat - 1]:find("AH price tooltip off", 1, true), W.chat[#W.chat - 1])
+	SlashCmdList.FOREVERSCRIBE("tooltip shift")
+	eq(#tip(4305), 0, "shift mode: nothing without Shift")
+	W.shift = true; truthy(has(tip(4305), "Cheapest listing | 8s 49c"))
+	SlashCmdList.FOREVERSCRIBE("tooltip on"); W.shift = false
+	truthy(has(tip(4305), "Hold Shift for details"))
+	SlashCmdList.FOREVERSCRIBE("tooltip")
+	truthy(W.chat[#W.chat]:find("PvP Alliance, 6 items, scan 14m ago", 1, true), W.chat[#W.chat])
+end)
+
+test("v6 price file loader: missing, wrong format, too big, bad rows are refused without errors", function()
+	W.Boot()
+	eq(#tip(4305), 0, "no price file: tooltip untouched")
+	eq(FS().Tooltip.loadError, "no price file")
+	SlashCmdList.FOREVERSCRIBE("tooltip")
+	truthy(W.chat[#W.chat]:find("no prices loaded", 1, true), W.chat[#W.chat])
+	local T = FS().Tooltip
+	eq(T.Load({ v = 2, captured = 1, d = {} }), false); truthy(T.loadError:find("format 2", 1, true))
+	eq(T.Load({ v = 1, d = {} }), false); eq(T.loadError, "price file without a scan time")
+	eq(T.Load("x"), false); eq(T.loadError, "bad price file")
+	local big = { v = 1, captured = 1, d = {} }
+	for i = 1, T.MAX_ITEMS + 1 do big.d[i] = "1" end
+	eq(T.Load(big), false); truthy(T.loadError:find("too big", 1, true))
+	big.d[T.MAX_ITEMS + 1] = nil
+	eq(T.Load(big), true, tostring(T.loadError))
+	-- damaged rows are skipped, not fatal
+	eq(T.Load({ v = 1, captured = 1, d = { [1] = "", [2] = ",,,", [3] = string.rep("9", 200), [4] = "5" }, p = { [4] = "garbage" } }), true)
+	eq(T.Row(1), nil); eq(T.Row(2), nil); eq(T.Row(3), nil); eq(T.Row(4).median, 5); eq(T.Recipe(4), nil)
+	eq(FS().errors or 0, 0, tostring(FS().lastError))
+end)
+
+test("v6 OnTooltipSetItem fallback when the client has no TooltipDataProcessor", function()
+	W.tipAPI = "script"; W.Prices(); W.Boot()
+	eq(FS().Tooltip.hooked, "OnTooltipSetItem")
+	truthy(has(tip(4305), "Typical price | 8s 68c"))
+	truthy(has(tip(4305, { tip = ItemRefTooltip }), "Typical price | 8s 68c"))
+end)
+
+test("v6 tooltip: secret or missing pieces degrade silently", function()
+	W.Prices(); W.Boot()
+	for _, pc in ipairs(W.postCalls) do pc[2](GameTooltip, { type = 0, id = W.Secret(), lines = { W.Secret() } }) end
+	C_Item.GetItemCount, GetMoneyString = nil, nil
+	local l = tip(4305)
+	truthy(has(l, "Typical price | 8s 68c"), show(l)) -- plain g/s/c fallback reads the same after stripping
+	truthy(not has(l, "Your 12 are worth | 1g 4s 16c"))
+	eq(FS().errors or 0, 0, tostring(FS().lastError))
+	-- a client with neither hook nor tooltip
+	dofile(ROOT .. "tests/lua/wow_stub.lua"); W.Reset(); W.ROOT = ROOT
+	TooltipDataProcessor, GameTooltip, ItemRefTooltip = nil, nil, nil
+	W.Prices(); W.Boot()
+	eq(FS().errors or 0, 0, tostring(FS().lastError)); eq(C().snapshot.level, 23)
+end)
 
 if FIXTURES then
 	dofile(ROOT .. "tests/lua/wow_stub.lua")

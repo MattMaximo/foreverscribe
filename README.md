@@ -85,7 +85,8 @@ and never calls `ReloadUI`. The **only** chat event it listens to is `CHAT_MSG_S
 client's own auction-outcome format strings (`ERR_AUCTION_SOLD_S` and friends, in your client's language) are kept
 as *kind + item name*; every other line is dropped unread. Player names from mail, auctions or invoices are never
 stored, and macro bodies are never read; NPC sightings skip players, pets and anything secret. The only thing the
-companion ever puts into the game folder is the data-only route file (`route write`), which you load with `/fs go`. See [`docs/CAPTURE-MATRIX.md`](docs/CAPTURE-MATRIX.md) for every API used.
+companion ever puts into the game folder are the data-only route file (`route write`), which you load with `/fs go`, and
+the data-only AH price file (`prices write`) the tooltip reads. See [`docs/CAPTURE-MATRIX.md`](docs/CAPTURE-MATRIX.md) for every API used.
 
 ## Waypoints ("where is the Stormwind First Aid trainer?")
 
@@ -94,6 +95,15 @@ to paste in chat, matched to your addons: `/scribe way 52.8 44.8 Stormwind City 
 pin and arrow (and hands it to Polestar's or TomTom's arrow if you use one). Without ForeverScribe 0.4 in game it
 prints the TomTom, Polestar or plain-Forever `/run` equivalent. The only thing the addon does here is set the map pin
 you asked for. Sources and the Stormwind/Mulgore map-redraw fix: [`docs/WAYPOINTS.md`](docs/WAYPOINTS.md).
+
+## AH prices in your tooltips (0.6)
+
+With AH prices on (`[ah]`, off by default), hover any item: an **Auction House** section shows the typical price on
+your market and what your stack is worth; hold **Shift** for cheapest listing, supply, 7/30-day trend, the other
+faction, sell-here-or-vendor and the recipes of yours that use it. Patterns show what the crafted item sells for and
+what the materials cost. The agent writes a small data-only price file (`foreverscribe prices write`, ~300 KB); the
+sync agent brings a fresh one about every 30 minutes and the game reads it at login or `/reload`. Details:
+[`docs/PRICES.md`](docs/PRICES.md).
 
 ## Real NPC locations and routes (0.5)
 
@@ -112,6 +122,7 @@ an arrow to each stop, the next one set as you arrive. The agent writes the rout
 - **Save reminder**: WoW writes SavedVariables only on `/reload`, logout or exit. `/scribe remind 30` (or installer
   `--remind 30`) prints one chat line after 30 minutes without a save. Off by default.
 - **Auction-house prices** (`ah`): off by default; see `[ah]` in [`config.example.toml`](config.example.toml) for why.
+  With them on, `prices write` puts them into the game's item tooltips (next section).
 - **Other addons' SavedVariables** (e.g. Forever Forge): listed in `[sync] extra_saved_variables`, shipped alongside
   and kept raw until a parser exists (`foreverscribe files`).
 - **Live strip** (macOS, advanced): `ForeverScribe_Live` + `foreverscribe/live_capture.py` stream events between saves.
@@ -119,9 +130,9 @@ an arrow to each stop, the next one set as you arrive. The agent writes the rout
 ## Repository layout
 
 ```
-addon/            ForeverScribe (+ ForeverScribe_Live, ForeverScribe_Route01-10 route slots) — the WoW addon
+addon/            ForeverScribe (+ ForeverScribe_Live, ForeverScribe_Prices, ForeverScribe_Route01-10 route slots) — the WoW addon
 data/             npc-locations.json: shared NPC sightings (contributions by pull request)
-foreverscribe/    Python package: store, queries, CLI, MCP server, receiver, auth, config, wowhead, waypoints, npcs, routes, ah, live capture
+foreverscribe/    Python package: store, queries, CLI, MCP server, receiver, auth, config, wowhead, waypoints, npcs, routes, ah, prices, live capture
 bin/              foreverscribe (POSIX) and foreverscribe.cmd (Windows) launchers
 installers/       macos/ (install.sh, uninstall.sh, sync agent)  windows/ (install.ps1, sync agent)
 skills/           agent instructions: generic + Hermes skill source

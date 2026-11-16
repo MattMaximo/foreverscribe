@@ -1,6 +1,6 @@
 
 ForeverScribeDB = {
-	["addonVersion"] = "0.5.0",
+	["addonVersion"] = "0.6.0",
 	["chars"] = {
 		["Forever-Test:Coilbyte"] = {
 			["actionbars"] = {
@@ -124,11 +124,11 @@ ForeverScribeDB = {
 						["map"] = 1426,
 						["zone"] = "Dun Morogh",
 					},
-					["id"] = "1763250105-c52c-3:1",
+					["id"] = "1763250105-4e6b-3:1",
 					["payload"] = {
 						["level"] = 20,
 						["money"] = 123456,
-						["version"] = "0.5.0",
+						["version"] = "0.6.0",
 						["zone"] = "Dun Morogh",
 					},
 					["schema"] = 1,
@@ -143,7 +143,7 @@ ForeverScribeDB = {
 						["map"] = 1426,
 						["zone"] = "Dun Morogh",
 					},
-					["id"] = "1763250105-c52c-3:2",
+					["id"] = "1763250105-4e6b-3:2",
 					["payload"] = {
 						["from"] = 140,
 						["group"] = "Professions",
@@ -329,7 +329,7 @@ ForeverScribeDB = {
 			["sessions"] = {
 				{
 					["events"] = 2,
-					["id"] = "1763250105-c52c-3",
+					["id"] = "1763250105-4e6b-3",
 					["last"] = 1763250115,
 					["level"] = 20,
 					["money"] = 123456,
@@ -338,7 +338,7 @@ ForeverScribeDB = {
 				}, -- [1]
 			},
 			["snapshot"] = {
-				["addonVersion"] = "0.5.0",
+				["addonVersion"] = "0.6.0",
 				["bags"] = {
 					["free"] = 25,
 					["items"] = {
@@ -498,7 +498,7 @@ ForeverScribeDB = {
 				["questsCompletedAt"] = 1763250105,
 				["rested"] = 500,
 				["resting"] = false,
-				["session"] = "1763250105-c52c-3",
+				["session"] = "1763250105-4e6b-3",
 				["skills"] = {
 					{
 						["group"] = "Professions",
@@ -820,11 +820,11 @@ ForeverScribeDB = {
 						["map"] = 1432,
 						["zone"] = "Loch Modan",
 					},
-					["id"] = "1763250000-0cd2-1:1",
+					["id"] = "1763250000-e379-1:1",
 					["payload"] = {
 						["level"] = 23,
 						["money"] = 123456,
-						["version"] = "0.5.0",
+						["version"] = "0.6.0",
 						["zone"] = "Loch Modan",
 					},
 					["schema"] = 1,
@@ -839,7 +839,7 @@ ForeverScribeDB = {
 						["map"] = 1432,
 						["zone"] = "Loch Modan",
 					},
-					["id"] = "1763250000-0cd2-1:2",
+					["id"] = "1763250000-e379-1:2",
 					["payload"] = {
 						["from"] = 23,
 						["level"] = 24,
@@ -856,7 +856,7 @@ ForeverScribeDB = {
 						["map"] = 1432,
 						["zone"] = "Loch Modan",
 					},
-					["id"] = "1763250000-0cd2-1:3",
+					["id"] = "1763250000-e379-1:3",
 					["payload"] = {
 						["items"] = {
 							{
@@ -879,7 +879,7 @@ ForeverScribeDB = {
 						["map"] = 1432,
 						["zone"] = "Loch Modan",
 					},
-					["id"] = "1763250000-0cd2-1:4",
+					["id"] = "1763250000-e379-1:4",
 					["payload"] = {
 						["itemID"] = 2589,
 						["name"] = "Linen Cloth",
@@ -900,7 +900,7 @@ ForeverScribeDB = {
 						["map"] = 1432,
 						["zone"] = "Loch Modan",
 					},
-					["id"] = "1763250000-0cd2-1:5",
+					["id"] = "1763250000-e379-1:5",
 					["payload"] = {
 						["itemID"] = 2589,
 						["name"] = "Linen Cloth",
@@ -921,7 +921,7 @@ ForeverScribeDB = {
 						["map"] = 1432,
 						["zone"] = "Loch Modan",
 					},
-					["id"] = "1763250000-0cd2-1:6",
+					["id"] = "1763250000-e379-1:6",
 					["payload"] = {
 						["from"] = 80,
 						["group"] = "Secondary Skills",
@@ -941,7 +941,7 @@ ForeverScribeDB = {
 						["map"] = 1432,
 						["zone"] = "Loch Modan",
 					},
-					["id"] = "1763250000-0cd2-1:7",
+					["id"] = "1763250000-e379-1:7",
 					["payload"] = {
 						["money"] = 1500,
 						["questID"] = 307,
@@ -960,11 +960,11 @@ ForeverScribeDB = {
 						["map"] = 1432,
 						["zone"] = "Loch Modan",
 					},
-					["id"] = "1763250052-c2f2-2:1",
+					["id"] = "1763250052-3bb2-2:1",
 					["payload"] = {
 						["level"] = 24,
 						["money"] = 123456,
-						["version"] = "0.5.0",
+						["version"] = "0.6.0",
 						["zone"] = "Loch Modan",
 					},
 					["schema"] = 1,
@@ -979,7 +979,7 @@ ForeverScribeDB = {
 						["map"] = 1426,
 						["zone"] = "Dun Morogh",
 					},
-					["id"] = "1763250052-c2f2-2:2",
+					["id"] = "1763250052-3bb2-2:2",
 					["payload"] = {
 						["new"] = {
 							["ilvl"] = 26,
@@ -1007,7 +1007,7 @@ ForeverScribeDB = {
 						["map"] = 1426,
 						["zone"] = "Dun Morogh",
 					},
-					["id"] = "1763250052-c2f2-2:3",
+					["id"] = "1763250052-3bb2-2:3",
 					["payload"] = {
 						["from"] = "Loch Modan",
 						["fromMapID"] = 1432,
@@ -1027,7 +1027,7 @@ ForeverScribeDB = {
 						["map"] = 1426,
 						["zone"] = "Dun Morogh",
 					},
-					["id"] = "1763250052-c2f2-2:4",
+					["id"] = "1763250052-3bb2-2:4",
 					["payload"] = {
 						["delta"] = 600,
 						["factionID"] = 47,
@@ -1049,7 +1049,7 @@ ForeverScribeDB = {
 						["map"] = 1426,
 						["zone"] = "Dun Morogh",
 					},
-					["id"] = "1763250052-c2f2-2:5",
+					["id"] = "1763250052-3bb2-2:5",
 					["payload"] = {
 						["areas"] = {
 							"Kharanos", -- [1]
@@ -1266,7 +1266,7 @@ ForeverScribeDB = {
 				{
 					["ended"] = 1763250047,
 					["events"] = 7,
-					["id"] = "1763250000-0cd2-1",
+					["id"] = "1763250000-e379-1",
 					["last"] = 1763250042,
 					["level"] = 23,
 					["levelEnd"] = 24,
@@ -1279,7 +1279,7 @@ ForeverScribeDB = {
 				{
 					["ended"] = 1763250100,
 					["events"] = 5,
-					["id"] = "1763250052-c2f2-2",
+					["id"] = "1763250052-3bb2-2",
 					["last"] = 1763250097,
 					["level"] = 24,
 					["levelEnd"] = 24,
@@ -1291,7 +1291,7 @@ ForeverScribeDB = {
 				}, -- [2]
 			},
 			["snapshot"] = {
-				["addonVersion"] = "0.5.0",
+				["addonVersion"] = "0.6.0",
 				["bags"] = {
 					["free"] = 25,
 					["items"] = {
@@ -1451,7 +1451,7 @@ ForeverScribeDB = {
 				["questsCompletedAt"] = 1763250052,
 				["rested"] = 500,
 				["resting"] = false,
-				["session"] = "1763250052-c2f2-2",
+				["session"] = "1763250052-3bb2-2",
 				["skills"] = {
 					{
 						["group"] = "Professions",

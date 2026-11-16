@@ -10,7 +10,7 @@ local FS = ForeverScribe
 local U = FS.Util
 local Try, Call, Clean, Sanitize = U.Try, U.Call, U.Clean, U.Sanitize
 
-FS.VERSION = "0.5.0"
+FS.VERSION = "0.6.0"
 FS.SCHEMA = 1
 FS.EVENT_CAP = 4000
 FS.SESSION_CAP = 200
@@ -1943,11 +1943,13 @@ function FS.Slash(msg)
 		if FS.Route then FS.Route.Command(arg) end
 	elseif cmd == "npcs" or cmd == "npc" then
 		if FS.Npcs then FS.Npcs.Command(arg) end
+	elseif cmd == "tooltip" or cmd == "prices" then
+		if FS.Tooltip then FS.Tooltip.Command(arg) else Print("the price tooltip needs ForeverScribe 0.6 (restart the game after updating)") end
 	elseif cmd == "played" then
 		db.settings.played = (arg ~= "off")
 		Print("/played request at login " .. (db.settings.played and "on" or "off"))
 	else
-		Print("/scribe status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title] | go | next | back | route [clear] | npcs")
+		Print("/scribe status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title] | go | next | back | route [clear] | npcs | tooltip on|off|shift")
 	end
 end
 

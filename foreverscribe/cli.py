@@ -479,7 +479,7 @@ COMMANDS = {
 
 # Commands that don't read the telemetry store (setup, transport, agent integrations, game data).
 TOOLS = ("setup", "pair", "receiver", "doctor", "config", "mcp", "ah", "wowhead", "gear", "rate", "craft", "aca", "page", "version",
-         "way", "npcs", "route")
+         "way", "npcs", "route", "prices")
 WOWHEAD_ALIASES = ("gear", "rate", "craft", "aca", "page")
 
 
@@ -492,6 +492,7 @@ EPILOG = """more commands:
   gear | rate <ids> | craft <ids> | aca | page <path>   Wowhead Forever, judged for the character
   wowhead <item|npc|quest|zone|spell|vendor|import-page|weights> ...   (see `foreverscribe wowhead`)
   ah <item> [...]                       auction-house prices (off unless enabled in config)
+  prices write|status|watch             AH prices into the game's item tooltips (addon 0.6+, needs [ah] on)
   version"""
 
 
@@ -568,6 +569,9 @@ def run_tool(argv):
     if cmd == "route":
         from . import routes
         return routes.main(rest)
+    if cmd == "prices":
+        from . import prices
+        return prices.main(rest)
     if cmd == "mcp":
         from . import mcp_server
         return mcp_server.main(rest)

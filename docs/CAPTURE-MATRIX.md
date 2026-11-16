@@ -1,4 +1,4 @@
-# ForeverScribe capture matrix (v0.5.0)
+# ForeverScribe capture matrix (v0.6.0)
 
 What the addon records about a character, which Forever API it reads, when, and how sure we are.
 Sources: Forever client 1.60.1.70938 UI source (`research/wow-ui-source-forever`, Gethe/wow-ui-source branch `forever`;
@@ -133,3 +133,17 @@ Evidence and paste-command syntaxes: [`WAYPOINTS.md`](WAYPOINTS.md).
 
 Never: players, pets, other players' names or GUIDs, objects, secret values; no input automation, no `ReloadUI`.
 The route slot addons (`ForeverScribe_Route01-10`) contain only data the companion wrote; see `docs/ROUTES-AND-NPCS.md`.
+
+## AH price tooltip (0.6, `Tooltip.lua`) — reads only, stores nothing
+
+| API | Why | Evidence (Forever UI source) |
+|---|---|---|
+| `TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, fn)` | add lines after an item tooltip is built | `Blizzard_SharedXMLGame/Tooltip/TooltipDataHandler.lua:199`; `TooltipDataType.Item = 0` in `TooltipInfoSharedDocumentation.lua` |
+| `GameTooltip:HookScript("OnTooltipSetItem")` | fallback when the processor is missing | — |
+| `OnTooltipCleared` / `OnHide` hooks | forget our lines, restore fonts | — |
+| tooltip data `lines[].type == ItemBinding (20)`, `bonding` | soulbound / quest / account-bound reason | `TooltipInfoSharedDocumentation.lua` (`TooltipDataItemBinding`) |
+| `C_Item.GetItemInfo` (sell price, class, bind type) | sell-or-vendor verdict, quest items | `ItemDocumentation.lua:626` |
+| `C_Item.GetItemCount(id, true)` | "Your N are worth" (bags + bank) | `ItemDocumentation.lua:451` |
+| `IsShiftKeyDown`, `MODIFIER_STATE_CHANGED`, `InCombatLockdown` | Shift details; refresh a chat-link tooltip outside combat | `InputDocumentation.lua`, `RestrictedActionsDocumentation.lua` |
+| `GetMoneyString`, `GetCoinTextureString`, `BreakUpLargeNumbers` | native coin formatting | `Blizzard_SharedXML/FormattingUtil.lua:72`, `CurrencyInfoDocumentation.lua`, `LocalizationDocumentation.lua` |
+| `tooltip:RefreshData()` | rebuild an unowned tooltip when Shift changes | `Blizzard_GameTooltip/Mainline/GameTooltip.lua:958` |

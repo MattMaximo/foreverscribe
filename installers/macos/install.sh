@@ -7,7 +7,7 @@
 #   (--pair and --folder can be combined: push first, the folder is a backup)
 # Options: --wow-dir DIR   --remind MINUTES (save reminder, 0 = off)   --extra "ForeverForge*.lua ..."
 #          --dry-run (show, change nothing)
-# Touches only: Interface/AddOns/ForeverScribe(_Live, _Route01-10), ~/Library/Application Support/ForeverScribe/,
+# Touches only: Interface/AddOns/ForeverScribe(_Live, _Prices, _Route01-10), ~/Library/Application Support/ForeverScribe/,
 #   ~/Library/LaunchAgents/io.foreverscribe.sync.plist. Undo everything with ./uninstall.sh.
 set -euo pipefail
 
@@ -20,7 +20,7 @@ LABEL="io.foreverscribe.sync"
 PLIST="$AGENTS/$LABEL.plist"
 LAUNCHCTL="${LAUNCHCTL:-launchctl}"
 DRY=0; ADDON_ONLY=0; PAIR=""; FOLDER=""; REMIND=""; EXTRA="ForeverForge*.lua"
-ADDON_DIRS="ForeverScribe ForeverScribe_Live"
+ADDON_DIRS="ForeverScribe ForeverScribe_Live ForeverScribe_Prices"
 for i in 01 02 03 04 05 06 07 08 09 10; do ADDON_DIRS="$ADDON_DIRS ForeverScribe_Route$i"; done
 
 say() { printf '%s\n' "$*"; }
@@ -74,7 +74,7 @@ fi
 TS="$(date +%Y%m%d-%H%M%S)"
 run mkdir -p "$SUPPORT"
 MANIFEST="$SUPPORT/install-manifest.txt"
-[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.5.0"; } > "$MANIFEST.new"
+[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.6.0"; } > "$MANIFEST.new"
 
 say "1) Addon -> $ADDONS"
 for d in $ADDON_DIRS; do
@@ -120,6 +120,7 @@ if [ $ADDON_ONLY -eq 1 ]; then
 fi
 
 say "2) Sync agent -> $SUPPORT"
+run rm -f "$SUPPORT/prices-checked"   # fetch prices on the first run
 run cp "$KIT/installers/macos/foreverscribe-sync.sh" "$SUPPORT/foreverscribe-sync.sh" 2>/dev/null || run cp "$HERE/foreverscribe-sync.sh" "$SUPPORT/foreverscribe-sync.sh"
 run chmod 755 "$SUPPORT/foreverscribe-sync.sh"
 [ -f "$KIT/foreverscribe/live_capture.py" ] && run cp "$KIT/foreverscribe/live_capture.py" "$SUPPORT/live_capture.py"
@@ -145,9 +146,10 @@ run mkdir -p "$AGENTS"
 # now, plus the Account folder itself (new accounts / first save).
 WATCH="		<string>$WOW_DIR/WTF/Account</string>"
 if [ -n "$FOLDER" ]; then  # routes the agent writes into the synced folder (foreverscribe route write)
-	run mkdir -p "$FOLDER/_route"
+	run mkdir -p "$FOLDER/_route" "$FOLDER/_prices"
 	WATCH="$WATCH
-		<string>$FOLDER/_route</string>"
+		<string>$FOLDER/_route</string>
+		<string>$FOLDER/_prices</string>"
 fi
 shopt -s nullglob
 for sv in "$WOW_DIR"/WTF/Account/*/SavedVariables; do
@@ -205,4 +207,5 @@ say ""
 say "Done. Next: fully quit and restart WoW, check 'ForeverScribe' is enabled at character select,"
 say "log in, type /scribe status, then /reload. Within a minute your agent sees it ('foreverscribe summary')."
 say "Routes: when your agent writes one, press /fs go (bind it under Keybindings > AddOns > ForeverScribe)."
+say "AH prices: if your agent has them on, item tooltips show them after the next login or /reload (/scribe tooltip)."
 say "Undo everything with ./uninstall.sh"

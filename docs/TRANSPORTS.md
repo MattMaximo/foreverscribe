@@ -76,6 +76,13 @@ For players with no shared folder, LAN or tunnel, a small hosted **end-to-end en
 It needs hosting, abuse limits and a crypto dependency (or a careful stdlib-only design), so it is deliberately left
 out of 0.3.
 
+## The other direction: AH prices (0.6)
+
+`foreverscribe prices write` sends the AH price file the same ways (details: [`PRICES.md`](PRICES.md)): `local`
+writes `Interface/AddOns/ForeverScribe_Prices/Prices.lua`; `folder` writes `<folder>/_prices/Prices.lua` (launchd
+watches `_prices`); `http`: the sync agent asks `POST /v1/prices` (signed, `X-FS-Have`) at most every 5 minutes and
+each ask refreshes the receiver's copy in the background once it is older than 30 minutes.
+
 ## The other direction: routes (0.5)
 
 `foreverscribe route write` sends a route back to the game computer over the same transport (details:

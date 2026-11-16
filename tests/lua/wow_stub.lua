@@ -644,6 +644,7 @@ do -- v0.3 additions live next to this file
 	dofile(here .. "wow_stub_v3.lua")
 	dofile(here .. "wow_stub_way.lua")
 	dofile(here .. "wow_stub_npc.lua")
+	dofile(here .. "wow_stub_tip.lua")
 end
 
 return W

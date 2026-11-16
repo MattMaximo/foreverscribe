@@ -1,7 +1,8 @@
 #!/bin/bash
 # ForeverScribe game-side sync agent (macOS). Ships SavedVariables to wherever your agent runs, and brings back the
-# route your agent wrote (`foreverscribe route write`). The only thing it writes inside the WoW folder is
-# Interface/AddOns/ForeverScribe_RouteNN/Route.lua (data-only route slots, read by /fs go); nothing else.
+# route and AH prices your agent wrote (`foreverscribe route write`, `foreverscribe prices write`). The only things it
+# writes inside the WoW folder are Interface/AddOns/ForeverScribe_RouteNN/Route.lua (data-only route slots, read by
+# /fs go) and Interface/AddOns/ForeverScribe_Prices/Prices.lua (data-only price file); nothing else.
 # Triggered by launchd (WatchPaths on each SavedVariables folder and the synced route folder + a 30-second interval).
 #
 # Settings: $SUPPORT/game.conf (written by install.sh), overridable by environment variables:
@@ -183,10 +184,68 @@ route_pickup() {
 	fi
 }
 
+# ---- prices (agent -> game) ----
+# `foreverscribe prices write` makes Interface/AddOns/ForeverScribe_Prices/Prices.lua: data only, read by the game at
+# login and /reload for the AH price tooltip. Same rules as a route slot: every line must match PRICE_LINE.
+PRICE_DIR="$ADDONS/ForeverScribe_Prices"
+PRICE_STAMP="${FOREVERSCRIBE_PRICE_STAMP:-$SUPPORT/prices-checked}"
+PRICE_EVERY="${FOREVERSCRIBE_PRICE_EVERY:-300}"   # ask the receiver at most every 5 minutes
+PRICE_MAX=1048576
+PRICE_LINE='^(-- [^[].*|ForeverScribe_PriceData = (\{|nil)|@(v|captured|written|items) = [0-9]+,|@(rev|market|label|other|source) = "[A-Za-z0-9 _.-]*",|@[dp] = \{|@@\[[0-9]+\] = "[0-9,:;]*",|@\},|\})?$'
+PRICE_LINE="${PRICE_LINE//@/	}"
+valid_prices() {
+	[ "$(wc -c < "$1" | tr -d ' ')" -le $PRICE_MAX ] || return 1
+	head -c 200 "$1" | grep -q '^-- ForeverScribe prices' || return 1
+	grep -q '^ForeverScribe_PriceData = {$' "$1" || return 1
+	tail -c 4 "$1" | grep -q '}' || return 1
+	! LC_ALL=C grep -Evq "$PRICE_LINE" "$1"
+}
+price_rev() { sed -n 's/^	rev = "\([A-Za-z0-9_.-]*\)",$/\1/p' "$1" 2>/dev/null | head -1; }
+
+install_prices() {  # install_prices <file> <from>
+	local src="$1" dest="$PRICE_DIR/Prices.lua" tmp
+	[ -f "$PRICE_DIR/ForeverScribe_Prices.toc" ] || return 1   # 0.6 not installed (yet)
+	cmp -s "$src" "$dest" && return 0
+	valid_prices "$src" || { log "prices from $2 ignored: not a ForeverScribe price file"; return 1; }
+	tmp="$PRICE_DIR/.Prices.lua.tmp.$$"
+	cp "$src" "$tmp" && mv -f "$tmp" "$dest" || { rm -f "$tmp"; log "could not write $dest"; return 1; }
+	log "prices $(price_rev "$dest") from $2 written ($(wc -c < "$dest" | tr -d ' ') bytes): they load at your next login or /reload"
+}
+
+fetch_prices() {  # http: signed ask; 200 = new file, 304 = unchanged, 204 = none written yet
+	local ts sig code body out
+	body="$(mktemp "${TMPDIR:-/tmp}/fs-prices-req.XXXXXX")"; out="$(mktemp "${TMPDIR:-/tmp}/fs-prices.XXXXXX")"
+	printf 'prices' > "$body"
+	ts=$(date +%s)
+	sig=$(sign "$ts" "/v1/prices" "$body") || { rm -f "$body" "$out"; return 0; }
+	code=$(curl -sS -o "$out" -w '%{http_code}' --connect-timeout 4 --max-time 60 -H "X-FS-Key: $KEY_ID" -H "X-FS-Time: $ts" \
+		-H "X-FS-Sig: $sig" -H "X-FS-Have: $(price_rev "$PRICE_DIR/Prices.lua")" --data-binary @"$body" "$PUSH_URL/v1/prices" 2>/dev/null)
+	case "$code" in
+		200) install_prices "$out" "receiver" ;;
+		403) log "receiver refused the price fetch (403): re-pair with: foreverscribe pair" ;;
+	esac
+	rm -f "$body" "$out"
+}
+
+prices_pickup() {
+	[ -f "$PRICE_DIR/ForeverScribe_Prices.toc" ] || return 0
+	if [ -n "$FOLDER_DEST" ] && [ -f "$FOLDER_DEST/_prices/Prices.lua" ]; then
+		install_prices "$FOLDER_DEST/_prices/Prices.lua" "synced folder" || true
+	fi
+	if [ -n "$PUSH_URL" ] && [ "${LEGACY_UNSIGNED:-0}" != "1" ] && [ -f "$KEY_FILE" ]; then
+		local last now; now=$(date +%s); last=$(cat "$PRICE_STAMP" 2>/dev/null || echo 0)
+		case "$last" in ''|*[!0-9]*) last=0 ;; esac
+		[ -f "$PRICE_DIR/Prices.lua" ] && [ -n "$(price_rev "$PRICE_DIR/Prices.lua")" ] && [ $((now - last)) -lt "$PRICE_EVERY" ] && return 0
+		printf '%s' "$now" > "$PRICE_STAMP"
+		fetch_prices
+	fi
+}
+
 shopt -s nullglob
 copied=0
 [ -z "$PUSH_URL" ] && [ -z "$FOLDER_DEST" ] && { [ "${1:-}" = "-v" ] && log "no transport configured (local mode): nothing to do"; exit 0; }
 route_pickup
+prices_pickup
 
 # 1) retry anything still in the spool whose source hasn't changed since (changed files are re-shipped below)
 if [ -n "$PUSH_URL" ]; then

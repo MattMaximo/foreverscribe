@@ -45,7 +45,10 @@ FS pair --name "<game PC name>"   # prints a one-line pairing code: a secret, gi
 ```
 
 Optional: `--character "<Name>"` (default character), `--market forever.<normal|pvp|hardcore>.<alliance|horde>.<us|eu>`.
-AH prices stay off unless the user opts in (`config.example.toml` → `[ah]` explains why).
+AH prices stay off unless the user opts in (`config.example.toml` → `[ah]` explains why). If they do, run
+`FS prices write` once: item tooltips in game then show AH prices after the next login or `/reload` (http: the
+receiver keeps them fresh while the game computer's sync agent runs; local: run `FS prices watch` or schedule
+`FS prices write` every 30 min). Details: `docs/PRICES.md`.
 
 ## 3. Install on the game computer (modes B and C)
 
@@ -120,7 +123,7 @@ Verify by calling the `summary` tool. No MCP support? Use the CLI directly; ever
 ## 9. Rules you must keep
 
 - Read-only. Don't edit the addon to add automation, chat, network or protected calls; don't call `ReloadUI`.
-- The only write towards the game is `route write`. Never hand-edit the route slot files: the sync agent rejects
-  anything that isn't exactly what the companion writes.
+- The only writes towards the game are `route write` and `prices write`. Never hand-edit the route slot or price
+  files: the sync agent rejects anything that isn't exactly what the companion writes.
 - The pairing code and `receiver-keys.json` are secrets. Don't post them anywhere.
 - Don't commit the user's `config.toml`, data dir, SavedVariables or logs to any repository.
