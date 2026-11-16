@@ -590,6 +590,13 @@ def summary(con, ck, now=None, consumer="default", mark=True):
         lines.append("Quest log (%d): %s" % (len(ql), "; ".join(
             "%s[%s]%s" % (q.get("title"), q.get("questID"), " DONE" if q.get("complete") else "") for q in ql[:25])))
     lines.append("Completed quests tracked: %d (use `foreverscribe quest <id|name>` to check one)" % s["quests_completed_total"])
+    try:
+        from . import polestar
+        pl = polestar.hot_line(con, ck)
+    except Exception:  # an optional addon's data never breaks the summary
+        pl = None
+    if pl:
+        lines.append(pl + " (`foreverscribe guide`)")
     h = history(con, ck, "last-session", now)
     if h["summary"]:
         bits = []

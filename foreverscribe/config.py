@@ -33,7 +33,7 @@ DEFAULTS = {
     "receiver": {"bind": "127.0.0.1", "port": 8766, "public_url": "", "allow_ips": [], "legacy_unsigned_ips": [],
                  "keys_file": "", "max_skew_seconds": 600},
     "pull": {"ssh_host": "", "ssh_command": "ssh -o BatchMode=yes -o ConnectTimeout=8", "remote_account_dir": ""},
-    "sync": {"extra_saved_variables": ["ForeverForge*.lua"]},
+    "sync": {"extra_saved_variables": ["ForeverForge*.lua", "Polestar.lua"]},
     "ah": {"enabled": False, "wowgg_key": "", "market": ""},
     "wowhead": {"cache_dir": "", "page_dir": "", "extra_page_dirs": []},
     "summary": {"max_lines": 40},
@@ -316,8 +316,11 @@ def resolve_sources(cfg, env=None, plat=None):
         base = os.path.join(wd, "WTF", "Account")
         if accounts:
             out += [os.path.join(base, a, "SavedVariables") for a in accounts]
+            for a in accounts:  # per-character SavedVariables (Polestar's PolestarCharDB)
+                out += sorted(glob.glob(os.path.join(base, a, "*", "*", "SavedVariables")))
         elif os.path.isdir(base):
             out += sorted(glob.glob(os.path.join(base, "*", "SavedVariables")))
+            out += sorted(glob.glob(os.path.join(base, "*", "*", "*", "SavedVariables")))
     folder = _expand((cfg.get("transport") or {}).get("folder") or "", env)
     if folder:
         out.append(folder)

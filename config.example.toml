@@ -44,9 +44,11 @@ keys_file = ""
 max_skew_seconds = 600
 
 [sync]
-# Other addons' SavedVariables to ship and keep alongside ForeverScribe (stored raw, unparsed,
-# until a parser exists). Simple file-name globs only. Shown by `foreverscribe files`.
-extra_saved_variables = ["ForeverForge*.lua"]
+# Other addons' SavedVariables to ship and keep alongside ForeverScribe. Simple file-name globs only, matched in
+# the account folder (WTF/Account/<acct>/SavedVariables/) AND every character's folder
+# (WTF/Account/<acct>/<realm>/<character>/SavedVariables/). Polestar.lua is parsed (`foreverscribe guide`); the rest
+# are stored raw until a parser exists. Shown by `foreverscribe files`.
+extra_saved_variables = ["ForeverForge*.lua", "Polestar.lua"]
 
 [sources]
 # Extra folders/files to ingest (for example a folder you copy files into by hand).

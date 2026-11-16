@@ -1,10 +1,10 @@
 ## Interface: 16001
 ## Title: ForeverScribe
-## Notes: Read-only character journal for your AI agent: snapshot + event log in SavedVariables. No network, no automation; the only chat read is auction-outcome system lines. /scribe way sets a map pin + arrow; /fs go walks a route your agent wrote. Notes where you meet NPCs. Item tooltips show auction-house prices your agent wrote (/scribe tooltip).
+## Notes: Read-only character journal for your AI agent: snapshot + event log in SavedVariables. No network, no automation; the only chat read is auction-outcome system lines. /scribe way sets a map pin + arrow; /fs go walks a route your agent wrote. Notes where you meet NPCs. Item tooltips show auction-house prices your agent wrote (/scribe tooltip). Tells your agent which Polestar guide step you are on (read-only).
 ## Author: ForeverScribe contributors
-## Version: 0.6.0
+## Version: 0.7.0
 ## SavedVariables: ForeverScribeDB
-## OptionalDeps: ForeverScribe_Live, ForeverScribe_Prices
+## OptionalDeps: ForeverScribe_Live, ForeverScribe_Prices, Polestar
 
 Util.lua
 Defaults.lua
@@ -14,3 +14,4 @@ Waypoint.lua
 Npcs.lua
 Route.lua
 Tooltip.lua
+Guide.lua

@@ -8,7 +8,8 @@ writes inside the WoW folder are Interface\AddOns\ForeverScribe_RouteNN\Route.lu
   foreverscribe-sync.ps1 -Watch     keep running: check every 10 s (what the logon task runs)
 
 Settings: %LOCALAPPDATA%\ForeverScribe\game.json (written by install.ps1):
-  wowDir, pushUrl + keyId (key in pairing.key), folderDest, extraSv (globs, default ForeverForge*.lua)
+  wowDir, pushUrl + keyId (key in pairing.key), folderDest, extraSv (globs, default ForeverForge*.lua and Polestar.lua; matched in each
+  accounts SavedVariables and every characters WTF\Account\<acct>\<realm>\<char>\SavedVariables)
 Pushes are signed with HMAC-SHA256 (same scheme as foreverscribe/auth.py). Failed pushes wait in
 spool\ (newest copy per file) and are retried on every pass.
 #>
@@ -29,7 +30,7 @@ function Log([string]$msg) {
 }
 
 function Load-Conf {
-    $c = @{ wowDir = "C:\Program Files (x86)\World of Warcraft\_forever_"; pushUrl = ""; keyId = ""; folderDest = ""; extraSv = @("ForeverForge*.lua") }
+    $c = @{ wowDir = "C:\Program Files (x86)\World of Warcraft\_forever_"; pushUrl = ""; keyId = ""; folderDest = ""; extraSv = @("ForeverForge*.lua", "Polestar.lua") }
     if (Test-Path $ConfPath) {
         $j = Get-Content $ConfPath -Raw | ConvertFrom-Json
         foreach ($p in $j.PSObject.Properties) { $c[$p.Name] = $p.Value }
@@ -71,7 +72,10 @@ function Push-Once($c, [string]$path, [string]$file) {
 
 function Push-File($c, [string]$acct, [string]$name, [string]$file) {
     if (-not $c.pushUrl) { return $false }
-    $path = if ($name -eq "ForeverScribe.lua") { "/v1/sv/$acct" } else { "/v1/sv/$acct/$name" }
+    # $acct is "<acct>" or "<acct>/<realm>/<char>" (a per-character file); each folder name is percent-encoded
+    $parts = $acct -split '/'
+    $enc = ($parts | ForEach-Object { [System.Uri]::EscapeDataString($_) }) -join '/'
+    $path = if ($name -eq "ForeverScribe.lua" -and $parts.Count -eq 1) { "/v1/sv/$enc" } else { "/v1/sv/$enc/$name" }
     for ($i = 1; $i -le 3; $i++) {
         $rc = Push-Once $c $path $file
         if ($rc -eq 0) { return $true }
@@ -255,8 +259,10 @@ function Pass {
     $accounts = Join-Path $c.wowDir "WTF\Account"
     if ($c.pushUrl -and (Test-Path $SpoolDir)) {
         foreach ($s in Get-ChildItem $SpoolDir -Recurse -Filter *.lua -File) {
-            $acct = $s.Directory.Name
-            $src = Join-Path $accounts "$acct\SavedVariables\$($s.Name)"
+            # <spool>\<acct>\<file> or <spool>\<acct>\<realm>\<char>\<file>
+            $rel = $s.Directory.FullName.Substring((Get-Item $SpoolDir).FullName.Length).TrimStart('\', '/')
+            $acct = ($rel -split '[\\/]') -join '/'
+            $src = Join-Path $accounts (($rel) + "\SavedVariables\$($s.Name)")
             if ((Test-Path $src) -and -not (Same $src $s.FullName)) { continue }
             if (Push-File $c $acct $s.Name $s.FullName) {
                 $dst = Join-Path (Join-Path $StateDir $acct) $s.Name
@@ -275,6 +281,20 @@ function Pass {
             if (-not $pat -or $pat -match '[\\/]') { continue }
             foreach ($f in Get-ChildItem $sv -Filter $pat -File -ErrorAction SilentlyContinue) {
                 if ($f.Extension -eq ".lua") { Ship $c $a.Name $f.Name $f.FullName }
+            }
+        }
+        # the same globs in every character's SavedVariables (Polestar's per-character PolestarCharDB)
+        foreach ($realm in Get-ChildItem $a.FullName -Directory -ErrorAction SilentlyContinue) {
+            if ($realm.Name -eq "SavedVariables") { continue }
+            foreach ($ch in Get-ChildItem $realm.FullName -Directory -ErrorAction SilentlyContinue) {
+                $csv = Join-Path $ch.FullName "SavedVariables"
+                if (-not (Test-Path $csv)) { continue }
+                foreach ($pat in @($c.extraSv)) {
+                    if (-not $pat -or $pat -match '[\\/]') { continue }
+                    foreach ($f in Get-ChildItem $csv -Filter $pat -File -ErrorAction SilentlyContinue) {
+                        if ($f.Extension -eq ".lua") { Ship $c "$($a.Name)/$($realm.Name)/$($ch.Name)" $f.Name $f.FullName }
+                    }
+                }
             }
         }
     }

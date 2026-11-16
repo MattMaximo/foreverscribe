@@ -8,6 +8,7 @@ and ingested at once, so the agent sees the new state within seconds.
   POST /v1/auth-check                   -> checks the signature only, stores nothing
   POST /v1/sv/<account>                 -> ForeverScribe.lua
   POST /v1/sv/<account>/<file.lua>      -> ForeverScribe.lua or a file matching sync.extra_saved_variables
+  POST /v1/sv/<account>/<realm>/<char>/<file.lua>  -> a per-character file matching it (e.g. Polestar.lua)
   POST /v1/route                        -> the route the agent wrote (`foreverscribe route write`), as the slot file;
                                            204 none, 304 when X-FS-Have names the current rev. Signed only (no legacy).
   POST /v1/prices                       -> the AH price file (`foreverscribe prices write`) for the tooltip; same
@@ -29,6 +30,7 @@ import os
 import re
 import threading
 import time
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import __version__, auth, config as C, prices, routes, store
@@ -36,6 +38,8 @@ from . import __version__, auth, config as C, prices, routes, store
 MAX_BYTES = 32 * 1024 * 1024
 ACCT_RE = re.compile(r"^[A-Za-z0-9#_.\-]{1,64}$")
 FILE_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,96}\.lua$")
+# a realm or character folder: letters (any script), digits, spaces, apostrophes, hyphens; never a path
+CHARDIR_RE = re.compile(r"^(?!\.)[^/\\\x00-\x1f]{1,64}$")
 LOCK = threading.Lock()
 
 
@@ -127,10 +131,17 @@ def make_handler(S):
                 return self._route()
             if path == "/v1/prices":
                 return self._prices()
-            m = re.match(r"^/v1/sv/([^/?]+)(?:/([^/?]+))?$", path)
+            m = re.match(r"^/v1/sv/([^/?]+)(?:/([^/?]+)/([^/?]+))?(?:/([^/?]+))?$", path)
             if not m:
                 return self._send(404, {"error": "not found"})
-            acct, fname = m.group(1), m.group(2) or "ForeverScribe.lua"
+            acct, fname = m.group(1), m.group(4) or "ForeverScribe.lua"
+            # per-character SavedVariables (WTF/Account/<acct>/<realm>/<char>/SavedVariables/<file>): realm and
+            # character folder names arrive percent-encoded (realms have spaces)
+            realm = urllib.parse.unquote(m.group(2)) if m.group(2) else None
+            charname = urllib.parse.unquote(m.group(3)) if m.group(3) else None
+            if realm is not None and (not CHARDIR_RE.match(realm) or not CHARDIR_RE.match(charname)
+                                      or fname == "ForeverScribe.lua"):
+                return self._send(400, {"error": "bad realm or character folder"})
             body = self._read_body()
             if body is None or not body:
                 return self._send(413, {"error": "bad size"})
@@ -143,7 +154,8 @@ def make_handler(S):
             if not body.rstrip().endswith(b"}"):
                 return self._send(400, {"error": "incomplete file"})
             t0 = time.time()
-            dest_dir = os.path.join(S.push_dir, acct, "SavedVariables")
+            dest_dir = os.path.join(S.push_dir, acct, *((realm, charname) if realm else ()), "SavedVariables")
+            label = "/".join([acct] + ([realm, charname] if realm else []))
             os.makedirs(dest_dir, exist_ok=True)
             dest = os.path.join(dest_dir, fname)
             tmp = os.path.join(dest_dir, ".%s.tmp.%d" % (fname, os.getpid()))
@@ -163,11 +175,11 @@ def make_handler(S):
                     finally:
                         con.close()
             except Exception as e:  # file is saved; normal query-time ingest will retry
-                log("push %s/%s saved but ingest failed: %s" % (acct, fname, e))
+                log("push %s/%s saved but ingest failed: %s" % (label, fname, e))
                 return self._send(202, {"saved": True, "ingested": False, "error": str(e)})
             ms = int((time.time() - t0) * 1000)
             log("push %s/%s (%s): %d bytes, %s, events_new=%s, %d ms" % (
-                acct, fname, why, len(body), res.get("status"), res.get("events_new"), ms))
+                label, fname, why, len(body), res.get("status"), res.get("events_new"), ms))
             self._send(200, {"saved": True, "ingested": True, "status": res.get("status"),
                              "events_new": res.get("events_new"), "ms": ms})
 

@@ -54,7 +54,9 @@ prices every ~30 minutes; the game reads them at login or `/reload`. `/scribe to
   that name is backed up first and restored on uninstall).
 - macOS: `~/Library/Application Support/ForeverScribe/` and `~/Library/LaunchAgents/io.foreverscribe.sync.plist`.
 - Windows: `%LOCALAPPDATA%\ForeverScribe\` and the "ForeverScribe Sync" scheduled task.
-- It reads `WTF/Account/*/SavedVariables/ForeverScribe.lua` (plus files listed in `--extra`, default
-  `ForeverForge*.lua`). The only things it writes inside the WoW folder are `ForeverScribe_RouteNN/Route.lua` when
+- It reads `WTF/Account/*/SavedVariables/ForeverScribe.lua` plus files listed in `--extra` (default
+  `ForeverForge*.lua Polestar.lua`), both in the account folder and in each character's
+  `WTF/Account/<acct>/<realm>/<character>/SavedVariables/` folder (Polestar keeps your guide progress there).
+  `--extra ""` ships ForeverScribe's file only. The only things it writes inside the WoW folder are `ForeverScribe_RouteNN/Route.lua` when
   your agent sends a route and `ForeverScribe_Prices/Prices.lua` when it sends AH prices (both checked line by line:
   plain data, never code).

@@ -40,7 +40,7 @@ class Config(unittest.TestCase):
             ex = C.parse_toml(fh.read())
         self.assertEqual(ex["transport"]["mode"], "local")
         self.assertFalse(ex["ah"]["enabled"], "AH stays off by default")
-        self.assertEqual(ex["sync"]["extra_saved_variables"], ["ForeverForge*.lua"])
+        self.assertEqual(ex["sync"]["extra_saved_variables"], ["ForeverForge*.lua", "Polestar.lua"])
         with self.assertRaises(C.ConfigError):
             C.parse_toml("x = unquoted")
 

@@ -15,6 +15,11 @@
 - `foreverscribe/` — Python 3.8+ standard library only (macOS ships 3.9). Config parsing falls back to a small TOML
   subset parser when `tomllib` (3.11+) is missing.
 
+- Optional third-party data (forever-db) is fetched at runtime from a pinned release with sha256 checks
+  (`foreverscribe/foreverdb.py`) and never committed: its tables are GPL-3.0 (`NOTICE.md`). Tests stub it
+  (`tests/test_polestar.py` `FakeRelease`; `tests/fsenv.py` sets `FOREVERSCRIBE_FOREVERDB=off`).
+- Polestar: only its documented API (`docs/WAYPOINTS.md` "Polestar"); no Polestar code is copied here (GPL).
+
 ## Tests
 
 ```sh

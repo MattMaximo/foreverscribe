@@ -10,7 +10,7 @@ local FS = ForeverScribe
 local U = FS.Util
 local Try, Call, Clean, Sanitize = U.Try, U.Call, U.Clean, U.Sanitize
 
-FS.VERSION = "0.6.0"
+FS.VERSION = "0.7.0"
 FS.SCHEMA = 1
 FS.EVENT_CAP = 4000
 FS.SESSION_CAP = 200
@@ -1384,6 +1384,10 @@ function H.PLAYER_ENTERING_WORLD(isLogin, isReload)
 		CheckInstance()
 		FS.SnapshotFast()
 	end
+	if FS.Guide and not state.guideStarted then
+		state.guideStarted = true
+		FS.Schedule("guide_login", 10, function() FS.Guide.OnLogin() end)
+	end
 	if FS.Route and not state.routeResumed then
 		state.routeResumed = true
 		FS.Schedule("route_resume", 3, function() FS.Route.Resume() end)
@@ -1945,11 +1949,13 @@ function FS.Slash(msg)
 		if FS.Npcs then FS.Npcs.Command(arg) end
 	elseif cmd == "tooltip" or cmd == "prices" then
 		if FS.Tooltip then FS.Tooltip.Command(arg) else Print("the price tooltip needs ForeverScribe 0.6 (restart the game after updating)") end
+	elseif cmd == "guide" or cmd == "polestar" then
+		if FS.Guide then FS.Guide.Command() else Print("reading Polestar needs ForeverScribe 0.7 (restart the game after updating)") end
 	elseif cmd == "played" then
 		db.settings.played = (arg ~= "off")
 		Print("/played request at login " .. (db.settings.played and "on" or "off"))
 	else
-		Print("/scribe status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title] | go | next | back | route [clear] | npcs | tooltip on|off|shift")
+		Print("/scribe status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title] | go | next | back | route [clear] | npcs | tooltip on|off|shift | guide")
 	end
 end
 

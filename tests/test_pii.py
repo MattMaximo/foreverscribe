@@ -41,6 +41,8 @@ class PII(unittest.TestCase):
 
     def test_fixtures_are_synthetic(self):
         for f in os.listdir(os.path.join(ROOT, "tests", "fixtures")):
+            if os.path.isdir(os.path.join(ROOT, "tests", "fixtures", f)):
+                continue  # fixtures/polestar: Polestar's files hold no realm or character name at all
             with open(os.path.join(ROOT, "tests", "fixtures", f), encoding="utf-8") as fh:
                 text = fh.read()
             self.assertIn("Forever-Test", text, f + " uses the synthetic realm")

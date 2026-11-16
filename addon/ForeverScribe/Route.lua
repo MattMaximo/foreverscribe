@@ -6,8 +6,10 @@
 -- file from disk at that moment. A slot can be loaded once per UI session, so there are SLOTS of them; /reload
 -- frees them all. The route and the current stop are kept in SavedVariables, so progress survives /reload and logout.
 --
--- On a route: the current stop gets a waypoint (Waypoint.lua: native pin + arrow, or Polestar/TomTom). A 1-second
--- timer checks the distance to it; within the stop's radius the next stop is set. /fs next skips ahead.
+-- On a route: the current stop gets a waypoint (Waypoint.lua: native pin + arrow, or Polestar/TomTom). With Polestar
+-- loaded its arrow takes the stop through Polestar.Nav.API.Navigate, one stop at a time (its API takes one target;
+-- Polestar plans the flights and boats to it). A 1-second timer checks the distance; within the stop's radius the
+-- next stop is handed over. /fs next skips ahead.
 
 local FS = ForeverScribe
 local U = FS.Util
@@ -132,7 +134,8 @@ function R.SetStop(quiet)
 	if not s then return false end
 	local label = string.format("%s %d/%d: %s", r.name, r.i, #r.stops, s.title)
 	if FS.Way and FS.Way.Set then
-		FS.Way.Set({ map = s.map, x = s.x, y = s.y, title = label, mapName = mapName(s.map) })
+		local _, via = FS.Way.Set({ map = s.map, x = s.x, y = s.y, title = label, mapName = mapName(s.map) })
+		R.via, R.lostTold = via, nil
 	elseif not quiet then
 		Print(label .. " (" .. fmt(s.x) .. ", " .. fmt(s.y) .. ")")
 	end
@@ -175,6 +178,13 @@ function R.Tick()
 	if not r then stopTicker() return end
 	local s = r.stops[r.i]
 	if not s then return end
+	-- Polestar's arrow walks the stop (its routes take flights and boats); its guide may point it elsewhere when a
+	-- step changes. We never take it back on our own: say so once, /fs go points it at this stop again.
+	if R.via == "Polestar" and not R.lostTold and FS.Way and FS.Way.PolestarHolds and FS.Way.PolestarHolds() == false then
+		R.lostTold = true
+		Print(string.format("Polestar's arrow moved on to its guide; /fs go points it back at stop %d/%d (%s). The map pin stays.",
+			r.i, #r.stops, s.title))
+	end
 	local d = R.Distance(s)
 	if d and d <= (s.r or R.DEFAULT_RADIUS) then
 		if r.i >= #r.stops then

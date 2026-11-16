@@ -5,14 +5,14 @@ ForeverScribe game-side installer for Windows (the PC that plays WoW: Forever).
   .\install.ps1 -Pair fs1.xxxx             agent on another computer: push over HTTP (code from `foreverscribe pair`)
   .\install.ps1 -Folder "D:\Dropbox\ForeverScribe"   agent elsewhere: copy into a synced folder
   (-Pair and -Folder can be combined)
-Options: -WowDir DIR   -Remind MINUTES   -Extra "ForeverForge*.lua"   -DryRun   -Uninstall
+Options: -WowDir DIR   -Remind MINUTES   -Extra "ForeverForge*.lua","Polestar.lua"   -DryRun   -Uninstall
 Run from PowerShell:  powershell -ExecutionPolicy Bypass -File .\install.ps1 -Pair fs1.xxxx
 Touches only: Interface\AddOns\ForeverScribe(_Live, _Prices, _Route01-10), %LOCALAPPDATA%\ForeverScribe\, the "ForeverScribe Sync"
 scheduled task (at logon, your user, no admin). Undo with -Uninstall.
 #>
 param(
     [string]$Pair = "", [string]$Folder = "", [string]$WowDir = "", [int]$Remind = -1,
-    [string[]]$Extra = @("ForeverForge*.lua"), [switch]$AddonOnly, [switch]$DryRun, [switch]$Uninstall
+    [string[]]$Extra = @("ForeverForge*.lua", "Polestar.lua"), [switch]$AddonOnly, [switch]$DryRun, [switch]$Uninstall
 )
 $ErrorActionPreference = "Stop"
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -78,7 +78,7 @@ if (-not $AddonOnly -and -not $pushUrl -and -not $Folder) {
 if (Get-Process -Name "Wow*" -ErrorAction SilentlyContinue) { Say "Note: WoW is running. Fully quit and restart it to load new addons." }
 
 $ts = Get-Date -Format "yyyyMMdd-HHmmss"
-$man = [ordered]@{ installedAt = $ts; wowDir = $wow; version = "0.6.0" }
+$man = [ordered]@{ installedAt = $ts; wowDir = $wow; version = "0.7.0" }
 if (Test-Path $Manifest) {
     $old = Get-Content $Manifest -Raw | ConvertFrom-Json
     foreach ($p in $old.PSObject.Properties) { if ($p.Name -like "backup_*") { $man[$p.Name] = $p.Value } }

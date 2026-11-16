@@ -20,6 +20,7 @@ common() {  # common <kit dir>
 	mkdir -p "$1/addon"
 	cp -R "$ROOT/addon/ForeverScribe" "$ROOT/addon/ForeverScribe_Live" "$ROOT/addon/ForeverScribe_Prices" "$ROOT"/addon/ForeverScribe_Route[0-9][0-9] "$1/addon/"
 	cp "$ROOT/LICENSE" "$1/LICENSE"
+	cp "$ROOT/NOTICE.md" "$1/NOTICE.md"
 	cp "$ROOT/addon/ForeverScribe_Live/LICENSE-wow-ai.txt" "$1/LICENSE-wow-ai.txt"
 	cp "$ROOT/docs/GAME-PC.md" "$1/README.md"
 }

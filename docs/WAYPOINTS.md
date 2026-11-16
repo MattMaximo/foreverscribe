@@ -62,6 +62,16 @@ the player's current map. Waypoint.lua makes no protected call, no movement, no 
   (`Nav/Bridges.lua:281-289`), and its own QA notes use `/run` in Forever (`docs/NAV_QA.md:144`).
 - Polestar can put a TomTom-shaped stand-in in the `TomTom` global when TomTom is absent; ForeverScribe only treats
   TomTom as present when the TomTom addon itself is loaded.
+- Re-checked for 0.7 against `next` at f93a8ee (addon 0.4.0.1, 2026-11-16): `API.version` is still 1, `API.minor` 1
+  adds `Target()`, `Follow/Unfollow/Dismiss` and `Active() -> active, owner` (`Nav/Journey.lua:353-531`). There is
+  **no multi-stop call**: `Navigate` replaces the one target (Polestar then plans flights/boats/walks to it itself). So
+  `/fs go` feeds stops one at a time, and uses `Active()` to notice when Polestar's guide has taken the arrow back
+  (said once; `/fs go` re-points it, never automatically).
+- Read-only guide state (0.7, `Guide.lua`): `Polestar.On("TABS_CHANGED"|"STEP_CHANGED"|"GUIDE_CHANGED", fn)`
+  (`docs/API.md` "Messages"), `Polestar.Engine.GetTabs(counts)` (`Core/Engine.lua:7651`),
+  `Engine.GetStepView(i, true)` (shared read-only view, `Core/Engine.lua:10783`), `Engine.GetProgress()`,
+  `Engine.GetGuide()`, `Engine.GetLiveStep()` (`docs/ARCHITECTURE.md` "Engine"), `Nav.API.Target()`. Never
+  `SetGuide`, `ReplaceSteps`, ticks or skips (a Lua test greps Guide.lua for them).
 
 ### TomTom — CurseForge `tomtom` v4.4.1-release (file 9493883), Interface lists 16001 (Forever)
 
@@ -100,7 +110,8 @@ position (same continent), else by how many points Wowhead recorded.
 ## Routes
 
 Multi-stop routes (`/fs go`) shipped in 0.5: [`ROUTES-AND-NPCS.md`](ROUTES-AND-NPCS.md). Each stop is set through
-the same `Way.Set` (native pin + arrow, or Polestar/TomTom).
+the same `Way.Set` (native pin + arrow, or Polestar/TomTom). With Polestar loaded each stop goes to its arrow, one at
+a time (see the Polestar notes above).
 
 ## Not done yet
 

@@ -10,6 +10,7 @@ _SANDBOX = tempfile.mkdtemp(prefix="fs-sandbox-", dir=os.environ.get("TMPDIR"))
 os.environ["FOREVERSCRIBE_CONFIG"] = os.path.join(_SANDBOX, "no-config.toml")
 os.environ["FOREVERSCRIBE_DATA"] = os.path.join(_SANDBOX, "data")
 os.environ["FOREVERSCRIBE_PUSH_URL"] = ""
+os.environ["FOREVERSCRIBE_FOREVERDB"] = "off"  # never download forever-db in tests; tests that need it stub resolve.FDB
 for k in ("FOREVERSCRIBE_DB", "FOREVERSCRIBE_SOURCES", "FOREVERSCRIBE_CHAR", "WOWGG_KEY", "FOREVERSCRIBE_ALLOW"):
     os.environ.pop(k, None)
 

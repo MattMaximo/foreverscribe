@@ -45,11 +45,40 @@ count. Nothing about other players is ever read.
 1. **Your own sightings** (`npc_sightings` table, filled on ingest): "confirmed in game by this character, 2026-11-16 (2 visits)".
    A name or `<subtitle>` you have met (`way quartermaster vell`) resolves without Wowhead.
 2. **`data/npc-locations.json`** in the repo, sightings other users shared (empty to start).
-3. **Wowhead Forever**, as in 0.4 (with the Classic→Forever frame fix on the redrawn maps).
+3. **forever-db** (0.7, `foreverscribe/foreverdb.py`): Polestar's open database. Spawn points are world yards on the
+   continent; ForeverScribe converts them with the client's map frames (`gamedata/maps.json`, identical to forever-db's
+   `ui_map` table) into Forever map percent, applies forever-db's own `corrections/npcs.json` (`addSpawns`, `f: e`
+   points converted from the Classic frame), and clusters points within 2.5 %. Downloaded once from release
+   `data-v2026.11.1` (sha256-checked), cached in `<data_dir>/forever-db/`; `foreverscribe foreverdb status|fetch`.
+   Offline: skipped, never an error. Name search falls back to it when Wowhead finds nothing.
+4. **Wowhead Forever**, as in 0.4 (with the Classic→Forever frame fix on the redrawn maps).
 
-When 1 or 2 is more than 25 yards from Wowhead's nearest pin, the answer says `Wowhead's pin is ~X yd off` (or that
-Wowhead puts it in another zone, or has no position). `foreverscribe npcs` lists what you have met;
-`foreverscribe npcs --disagree [--yards N]` lists only the mismatches (one cached Wowhead lookup each).
+**Agreement** (`foreverscribe/resolve.py`): the spot the answer uses (nearest to you) is compared with the next
+source's nearest spot on the same continent. More than 25 yards (`FOREVERSCRIBE_DISAGREE_YARDS`) or another
+continent:
+
+- no sighting: `⚠ uncertain: forever-db and Wowhead Forever disagree (132 yd apart). Wowhead Forever puts it at
+  Tirisfal Glades 61.4, 53.4. This command uses forever-db's spot …` plus `help fix: talk to <NPC> once …`
+- your sighting: `Wowhead's pin is ~X yd off` / `forever-db is X yd off from where you met it`, and the correction
+  command. The command always uses the most trusted source.
+
+`foreverscribe npcs` lists what you have met; `foreverscribe npcs --disagree [--yards N]` lists only the NPCs where
+forever-db or Wowhead is off, and writes a correction draft for each (below).
+
+## Correction drafts (0.7, never sent)
+
+`foreverscribe correction draft <npc id|name>` (MCP `correction_draft`) compares your newest sighting with forever-db
+and Wowhead and writes, under `<data_dir>/upstream/`:
+
+- `forever-db/npc-<id>.json` and the merged `forever-db/npcs.json`: entries in forever-db's `corrections/npcs.json`
+  format: `{"<npcID>": {"addSpawns": {"<uiMapID>": {"f": "l", "pts": [[x, y]]}}, "source": {"kind": "in-game-check",
+  "ref": "player in-game check <date>, client <build>"}, "note": "…"}}`. `addSpawns` replaces that map's points, so a
+  multi-spawn NPC keeps its other points more than 60 yd from yours. The note says what forever-db had and how it was
+  checked, in our words, and never cites a website (forever-db's rule).
+- `wowhead/npc-<id>.txt`: a short comment for its Wowhead Forever page.
+- `README.md`: how a person submits them (a Polestar pull request to `next`; Wowhead by hand).
+
+ForeverScribe never opens a pull request, issue or comment, and never uploads anything.
 
 ## Sharing corrections
 

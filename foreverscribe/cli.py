@@ -97,6 +97,13 @@ def _char(args, con):
     return Q.resolve_char(con, args.char or args._default_char)
 
 
+def cmd_guide(args, con, cfg):
+    from . import polestar
+    ck = _char(args, con)
+    st = polestar.state(con, ck)
+    out(args, st, polestar.render(st))
+
+
 def cmd_characters(args, con, cfg):
     rows = Q.characters(con)
     now = Q.now_ts()
@@ -474,12 +481,12 @@ COMMANDS = {
     "reputation": cmd_reputation, "talents": cmd_talents, "explored": cmd_explored, "achievements": cmd_achievements,
     "collections": cmd_collections, "stats": cmd_stats, "currencies": cmd_currencies, "lockouts": cmd_lockouts,
     "mail": cmd_mail, "everything": cmd_everything, "dump": cmd_everything,
-    "auctions": cmd_auctions, "vendor": cmd_vendor, "cold": cmd_cold, "files": cmd_files,
+    "auctions": cmd_auctions, "vendor": cmd_vendor, "cold": cmd_cold, "files": cmd_files, "guide": cmd_guide,
 }
 
 # Commands that don't read the telemetry store (setup, transport, agent integrations, game data).
 TOOLS = ("setup", "pair", "receiver", "doctor", "config", "mcp", "ah", "wowhead", "gear", "rate", "craft", "aca", "page", "version",
-         "way", "npcs", "route", "prices")
+         "way", "npcs", "route", "prices", "correction", "foreverdb")
 WOWHEAD_ALIASES = ("gear", "rate", "craft", "aca", "page")
 
 
@@ -487,7 +494,9 @@ EPILOG = """more commands:
   setup | pair | receiver [run|health|launchagent] | doctor | config [path|show]   setup and transport
   mcp                                   stdio MCP server for Claude / Codex / Hermes / any MCP client
   way <npc|object|x y zone>             where it is + the chat command that pins it with an arrow
-  npcs [--disagree|--export-shared]     NPCs met in game (true positions) and where Wowhead's pin is off
+  npcs [--disagree|--export-shared]     NPCs met in game (true positions); --disagree: where forever-db/Wowhead are off
+  correction draft <npc>|list           a forever-db correction + Wowhead comment from your sighting (never sent)
+  foreverdb status|fetch|npc <id>       Polestar's open database (location source; fetched once, cached)
   route add|show|write|status ...       multi-stop route, walked in game with /fs go
   gear | rate <ids> | craft <ids> | aca | page <path>   Wowhead Forever, judged for the character
   wowhead <item|npc|quest|zone|spell|vendor|import-page|weights> ...   (see `foreverscribe wowhead`)
@@ -513,6 +522,7 @@ def build_parser():
     s.add_argument("--peek", action="store_true", help="don't advance the 'new since last check' marker")
     s.add_argument("--consumer", default="default", help="separate 'new since last check' marker per agent")
     sub.add_parser("freshness", help="how old the data is")
+    sub.add_parser("guide", help="Polestar: current guide, step N/M, open goals, travel target")
     e = sub.add_parser("events", help="event log")
     e.add_argument("--since", help="epoch or timeframe (today, 24h, last-session)")
     e.add_argument("--limit", type=int, default=30)
@@ -572,6 +582,12 @@ def run_tool(argv):
     if cmd == "prices":
         from . import prices
         return prices.main(rest)
+    if cmd == "correction":
+        from . import upstream
+        return upstream.main(rest)
+    if cmd == "foreverdb":
+        from . import foreverdb
+        return foreverdb.main(rest)
     if cmd == "mcp":
         from . import mcp_server
         return mcp_server.main(rest)

@@ -5,7 +5,7 @@
 #   ./install.sh --pair fs1.xxxx              agent on another computer: push over HTTP (code from `foreverscribe pair`)
 #   ./install.sh --folder "<synced folder>"   agent on another computer: copy into iCloud Drive/Dropbox/OneDrive/...
 #   (--pair and --folder can be combined: push first, the folder is a backup)
-# Options: --wow-dir DIR   --remind MINUTES (save reminder, 0 = off)   --extra "ForeverForge*.lua ..."
+# Options: --wow-dir DIR   --remind MINUTES (save reminder, 0 = off)   --extra "ForeverForge*.lua Polestar.lua ..."
 #          --dry-run (show, change nothing)
 # Touches only: Interface/AddOns/ForeverScribe(_Live, _Prices, _Route01-10), ~/Library/Application Support/ForeverScribe/,
 #   ~/Library/LaunchAgents/io.foreverscribe.sync.plist. Undo everything with ./uninstall.sh.
@@ -19,7 +19,7 @@ AGENTS="${FOREVERSCRIBE_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
 LABEL="io.foreverscribe.sync"
 PLIST="$AGENTS/$LABEL.plist"
 LAUNCHCTL="${LAUNCHCTL:-launchctl}"
-DRY=0; ADDON_ONLY=0; PAIR=""; FOLDER=""; REMIND=""; EXTRA="ForeverForge*.lua"
+DRY=0; ADDON_ONLY=0; PAIR=""; FOLDER=""; REMIND=""; EXTRA="ForeverForge*.lua Polestar.lua"
 ADDON_DIRS="ForeverScribe ForeverScribe_Live ForeverScribe_Prices"
 for i in 01 02 03 04 05 06 07 08 09 10; do ADDON_DIRS="$ADDON_DIRS ForeverScribe_Route$i"; done
 
@@ -74,7 +74,7 @@ fi
 TS="$(date +%Y%m%d-%H%M%S)"
 run mkdir -p "$SUPPORT"
 MANIFEST="$SUPPORT/install-manifest.txt"
-[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.6.0"; } > "$MANIFEST.new"
+[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.7.0"; } > "$MANIFEST.new"
 
 say "1) Addon -> $ADDONS"
 for d in $ADDON_DIRS; do

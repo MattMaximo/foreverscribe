@@ -9,7 +9,9 @@
 #   WOW_DIR      the _forever_ folder
 #   PUSH_URL     http transport: receiver URL ("" = off). Signed with KEY_ID + the key in $SUPPORT/pairing.key
 #   FOLDER_DEST  folder transport: a synced folder (iCloud Drive, Dropbox, OneDrive, Google Drive, Syncthing...)
-#   EXTRA_SV     space-separated globs of other addons' SavedVariables to ship too (default "ForeverForge*.lua")
+#   EXTRA_SV     space-separated globs of other addons' SavedVariables to ship too (default "ForeverForge*.lua
+#                Polestar.lua"), matched in each account's SavedVariables folder and in every character's
+#                WTF/Account/<acct>/<realm>/<char>/SavedVariables folder (Polestar's per-character PolestarCharDB)
 #   LEGACY_UNSIGNED=1   v0.2 receivers only: push without a signature (IP allowlist on the receiver side)
 # Failed pushes are kept in $SUPPORT/spool (latest copy per file) and retried on every run.
 set -u
@@ -20,7 +22,7 @@ WOW_DIR="/Applications/World of Warcraft/_forever_"
 PUSH_URL=""
 KEY_ID=""
 FOLDER_DEST=""
-EXTRA_SV="ForeverForge*.lua"
+EXTRA_SV="ForeverForge*.lua Polestar.lua"
 LEGACY_UNSIGNED=0
 [ -f "$CONF" ] && . "$CONF"
 # environment wins over game.conf (tests and one-off runs)
@@ -80,10 +82,24 @@ push_once() {  # push_once <url-path> <file>
 	esac
 }
 
-push_file() {  # push_file <acct> <name> <file>; retries with backoff
+# Percent-encode one path segment (realm folders have spaces); bytes outside A-Za-z0-9._~- become %XX.
+urlenc() {
+	local LC_ALL=C s="$1" out="" c i
+	for ((i = 0; i < ${#s}; i++)); do
+		c="${s:i:1}"
+		case "$c" in [A-Za-z0-9._~-]) out+="$c" ;; *) out+=$(printf '%%%02X' $(( $(printf '%d' "'$c") & 255 ))) ;; esac
+	done
+	printf '%s' "$out"
+}
+
+push_file() {  # push_file <acct>[/<realm>/<char>] <name> <file>; retries with backoff
 	[ -n "$PUSH_URL" ] || return 1
-	local path="/v1/sv/$1" i=1 rc
-	[ "$2" = "ForeverScribe.lua" ] || path="/v1/sv/$1/$2"
+	local path="/v1/sv/$1" i=1 rc a r c
+	case "$1" in
+		*/*/*) a="${1%%/*}"; r="${1#*/}"; c="${r#*/}"; r="${r%%/*}"
+			path="/v1/sv/$(urlenc "$a")/$(urlenc "$r")/$(urlenc "$c")/$2" ;;
+		*) [ "$2" = "ForeverScribe.lua" ] || path="/v1/sv/$1/$2" ;;
+	esac
 	while :; do
 		push_once "$path" "$3"; rc=$?
 		[ $rc -eq 0 ] && return 0
@@ -249,12 +265,15 @@ prices_pickup
 
 # 1) retry anything still in the spool whose source hasn't changed since (changed files are re-shipped below)
 if [ -n "$PUSH_URL" ]; then
-	for spooled in "$SPOOL"/*/*.lua; do
-		acct="$(basename "$(dirname "$spooled")")"; name="$(basename "$spooled")"
-		src="$WOW_DIR/WTF/Account/$acct/SavedVariables/$name"
+	for spooled in "$SPOOL"/*/*.lua "$SPOOL"/*/*/*/*.lua; do
+		name="$(basename "$spooled")"; key="${spooled#"$SPOOL"/}"; key="${key%/*}"   # <acct> or <acct>/<realm>/<char>
+		case "$key" in
+			*/*/*) src="$WOW_DIR/WTF/Account/$key/SavedVariables/$name" ;;
+			*) src="$WOW_DIR/WTF/Account/$key/SavedVariables/$name" ;;
+		esac
 		[ -f "$src" ] && ! cmp -s "$src" "$spooled" && continue
-		if push_file "$acct" "$name" "$spooled"; then
-			mkdir -p "$STATE_DIR/$acct"; mv -f "$spooled" "$STATE_DIR/$acct/$name"; log "delivered spooled $acct/$name"
+		if push_file "$key" "$name" "$spooled"; then
+			mkdir -p "$STATE_DIR/$key"; mv -f "$spooled" "$STATE_DIR/$key/$name"; log "delivered spooled $key/$name"
 		fi
 	done
 fi
@@ -268,6 +287,20 @@ for svdir in "$WOW_DIR"/WTF/Account/*/SavedVariables; do
 		case "$pat" in */*|*..*) continue ;; esac
 		for f in "$svdir"/$pat; do
 			case "$f" in *.lua) [ -f "$f" ] && ship "$acct" "$(basename "$f")" "$f" ;; esac
+		done
+	done
+done
+# 3) the same globs in every character's own SavedVariables (WTF/Account/<acct>/<realm>/<char>/SavedVariables),
+#    e.g. Polestar's PolestarCharDB. ForeverScribe itself has no per-character file.
+for svdir in "$WOW_DIR"/WTF/Account/*/*/*/SavedVariables; do
+	chr="$(basename "$(dirname "$svdir")")"; realm="$(basename "$(dirname "$(dirname "$svdir")")")"
+	acct="$(basename "$(dirname "$(dirname "$(dirname "$svdir")")")")"
+	case "$realm$chr" in */*|*..*) continue ;; esac
+	[ "$realm" = "SavedVariables" ] && continue
+	for pat in ${PATS[@]+"${PATS[@]}"}; do
+		case "$pat" in */*|*..*) continue ;; esac
+		for f in "$svdir"/$pat; do
+			case "$f" in *.lua) [ -f "$f" ] && ship "$acct/$realm/$chr" "$(basename "$f")" "$f" ;; esac
 		done
 	done
 done

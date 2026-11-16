@@ -84,7 +84,43 @@ function W.FakePolestar()
 			return true
 		end,
 		Cancel = function(owner) if W.polestar.target and W.polestar.target.owner == owner then W.polestar.target = nil return true end return false end,
+		Active = function() local t = W.polestar.target; if not t then return false end return true, t.owner end,
 	} } }
+end
+
+-- A fuller Polestar for the guide reader: only the calls its docs list (docs/API.md, docs/ARCHITECTURE.md "Engine",
+-- Nav API minor 1), with the shapes its Engine.lua returns. W.polestar.tabs / .views / .liveTarget drive it.
+function W.FakePolestarGuide()
+	W.FakePolestar()
+	local P = Polestar
+	P.version = "0.4.0.1"
+	P.API = { version = 1 }
+	W.polestar.handlers = {}
+	W.polestar.tabs = { { guideId = "forever/alliance/02-westfall", title = "Westfall", category = "Leveling", stepIndex = 12,
+		stepCount = 74, stepNumber = 11, stepTotal = 70, done = 10, total = 74, complete = false } }
+	W.polestar.views = { [12] = { index = 12, title = "Sentinel Hill", status = "current", goals = {
+		{ t = "turnin", text = "Hand in |cffffd100The People's Militia|r", status = "open" },
+		{ t = "kill", text = "Kill Defias Trappers", status = "open", progress = { cur = 3, max = 15 } },
+		{ t = "accept", text = "hidden for this class", status = "na" },
+	} } }
+	W.polestar.calls = {}
+	P.On = function(msg, fn) W.polestar.handlers[msg] = W.polestar.handlers[msg] or {}; table.insert(W.polestar.handlers[msg], fn); return #W.polestar.handlers[msg] end
+	P.Engine = {
+		GetTabs = function(counts) W.polestar.calls[#W.polestar.calls + 1] = "GetTabs"; return W.polestar.tabs, 1 end,
+		GetStepView = function(i, shared) W.polestar.calls[#W.polestar.calls + 1] = "GetStepView:" .. tostring(shared); return W.polestar.views[i] end,
+		GetProgress = function() return 10, 74 end,
+		GetGuide = function() return { id = W.polestar.tabs[1].guideId } end,
+		GetLiveStep = function() return W.polestar.tabs[1].stepIndex end,
+	}
+	P.Nav.API.Target = function()
+		local t = W.polestar.liveTarget
+		if not t then return nil end
+		return { map = t.map, x = t.x, y = t.y, title = t.title, kind = t.kind, next = t.next }
+	end
+end
+
+function W.PolestarFire(msg, ...)
+	for _, fn in ipairs((W.polestar.handlers or {})[msg] or {}) do fn(...) end
 end
 
 function W.FakeTomTom()

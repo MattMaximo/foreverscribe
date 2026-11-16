@@ -224,6 +224,15 @@ local function tomtom()
 	return nil
 end
 
+-- true while Polestar's arrow still points at the spot we handed it; false once something else (its own guide's
+-- next step, the player's click) took the arrow; nil when Polestar isn't there to ask.
+function Way.PolestarHolds()
+	local api = polestarAPI()
+	if not (api and type(api.Active) == "function") then return nil end
+	local active, owner = Try(api.Active)
+	return (Clean(active) and Clean(owner) == OWNER) and true or false
+end
+
 function Way.Addons()
 	local found = {}
 	if polestarAPI() then found[#found + 1] = "Polestar" end
@@ -288,9 +297,11 @@ function Way.Set(r)
 		Print(why or ("could not set a waypoint (" .. r.mapName .. " " .. fmt(r.x) .. ", " .. fmt(r.y) .. ")"))
 		return false
 	end
-	Print(string.format("waypoint %s %s, %s%s — %s", r.mapName, fmt(r.x), fmt(r.y), r.title and (" (" .. r.title .. ")") or "",
-		via and ("arrow: " .. via .. (native and ", map pin set" or "")) or "map pin + arrow"))
-	return true
+	if not r.quiet then
+		Print(string.format("waypoint %s %s, %s%s — %s", r.mapName, fmt(r.x), fmt(r.y), r.title and (" (" .. r.title .. ")") or "",
+			via and ("arrow: " .. via .. (native and ", map pin set" or "")) or "map pin + arrow"))
+	end
+	return true, via
 end
 
 function Way.Clear(quiet)

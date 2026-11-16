@@ -1308,6 +1308,86 @@ test("v6 tooltip: secret or missing pieces degrade silently", function()
 	eq(FS().errors or 0, 0, tostring(FS().lastError)); eq(C().snapshot.level, 23)
 end)
 
+-- v0.7 Polestar guide reader --------------------------------------------------
+local function pol() return C().snapshot.polestar end
+
+test("guide: Polestar loaded -> current guide, step N/M, open goals and travel target kept for the agent", function()
+	W.FakePolestarGuide() -- an OptionalDep: loaded before ForeverScribe
+	W.polestar.liveTarget = { map = 1436, x = 0.565, y = 0.329, title = "Gryan Stoutmantle", kind = "turnin",
+		next = { map = 1436, x = 0.5, y = 0.4, title = "Fly to Sentinel Hill", kind = "taxi" } }
+	W.Boot(); W.Advance(5)
+	local p = pol()
+	truthy(p, "captured after login"); eq(p.v, 1); eq(p.version, "0.4.0.1")
+	eq(p.active, 1); eq(p.tabs[1].id, "forever/alliance/02-westfall"); eq(p.tabs[1].title, "Westfall")
+	eq(p.tabs[1].number, 11); eq(p.tabs[1].total, 70); eq(p.tabs[1].step, 12); eq(p.tabs[1].done, 10)
+	eq(p.step.title, "Sentinel Hill"); eq(#p.step.goals, 2, "a goal that is not for this character is left out")
+	eq(p.step.goals[1].text, "Hand in The People's Militia", "colour codes stripped")
+	eq(p.step.goals[2].cur, 3); eq(p.step.goals[2].max, 15)
+	eq(p.target.map, 1436); eq(p.target.x, 56.5); eq(p.target.title, "Gryan Stoutmantle"); eq(p.target.next.kind, "taxi")
+	truthy(table.concat(W.polestar.calls, ","):find("GetStepView:true", 1, true), "the shared read-only view")
+	-- a step change: Polestar's message, read once after it settles
+	W.polestar.tabs[1].stepIndex, W.polestar.tabs[1].stepNumber = 13, 12
+	W.polestar.views[13] = { index = 13, title = "The Jangolode Mine", goals = { { t = "collect", text = "Collect 10 Ore", status = "open" } } }
+	W.PolestarFire("TABS_CHANGED", W.polestar.tabs, 1); W.PolestarFire("STEP_CHANGED", 13)
+	W.Advance(3)
+	eq(pol().step.title, "The Jangolode Mine"); eq(pol().tabs[1].number, 12)
+	ForeverScribe.Slash("guide")
+	truthy(lastChat():find("Westfall step 12/70", 1, true), lastChat())
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("guide: without Polestar (or another API version) nothing is read and nothing breaks", function()
+	W.Boot(); W.Advance(12)
+	eq(pol(), nil)
+	ForeverScribe.Slash("guide"); truthy(lastChat():find("Polestar isn't loaded", 1, true), lastChat())
+	W.FakePolestarGuide(); Polestar.API.version = 2
+	eq(ForeverScribe.Guide.Capture(), nil, "unknown API version not read")
+	Polestar.API.version = 1; Polestar.Engine.GetStepView = function() error("changed shape") end
+	local p = ForeverScribe.Guide.Capture()
+	truthy(p and p.tabs[1].title == "Westfall" and p.step == nil, "a failing call only leaves its part out")
+	W.polestar.tabs = {}
+	Polestar.Engine.GetGuide = function() return nil end
+	Polestar.Engine.GetLiveStep = function() return nil end
+	truthy(ForeverScribe.Guide.Capture().none, "no guide open")
+end)
+
+test("guide: secret values from Polestar are dropped, never stored", function()
+	W.Boot(); W.FakePolestarGuide()
+	W.polestar.views[12].title = W.Secret("Secret step")
+	W.polestar.tabs[1].title = W.Secret("Secret guide")
+	local p = ForeverScribe.Guide.Capture()
+	eq(p.step.title, nil); eq(p.tabs[1].title, nil); eq(p.tabs[1].id, "forever/alliance/02-westfall")
+end)
+
+test("guide: source only reads Polestar (no SetGuide, ticks, skips or arrow calls)", function()
+	local f = assert(io.open(W.ROOT .. "addon/ForeverScribe/Guide.lua")); local src = f:read("*a"); f:close()
+	local code = src:gsub("%-%-[^\n]*", "")
+	for _, bad in ipairs({ "SetGuide", "ReplaceSteps", "ToggleGoal", "SkipGoal", "SkipStep", "Navigate", "Cancel", "Dismiss",
+		"RegisterGuide", "PinQuest", "hooksecurefunc", "ReloadUI", "SendChatMessage" }) do
+		truthy(not code:find(bad, 1, true), "Guide.lua must not call " .. bad)
+	end
+end)
+
+test("route + Polestar: each stop goes to Polestar's arrow; its guide taking the arrow is said once, never fought", function()
+	local d = slotDir(); W.slotDir = d
+	writeSlots(d, routeLua("rp", STOPS))
+	W.Boot(); W.FakePolestar()
+	W.zone.mapID, W.zone.x, W.zone.y = 1453, 0.10, 0.10
+	ForeverScribe.Slash("go")
+	eq(W.polestar.target.owner, "ForeverScribe"); near(W.polestar.target.x, 0.528)
+	truthy(W.polestar.target.title:find("Errands 1/3: Shaina Fuller", 1, true), W.polestar.target.title)
+	eq(W.superTracked, false, "one arrow: Polestar's")
+	W.zone.x, W.zone.y = 0.5285, 0.4485; W.Advance(1.5)
+	near(W.polestar.target.x, 0.60, "stop 2 handed to Polestar")
+	W.polestar.target = { owner = nil, map = 1436, x = 0.5, y = 0.5, title = "Polestar step" } -- its guide moved on
+	local before = #W.chat
+	W.Advance(3)
+	eq(#W.chat - before, 1, "said once"); truthy(lastChat():find("Polestar's arrow moved on", 1, true), lastChat())
+	eq(W.polestar.target.title, "Polestar step", "never taken back on its own")
+	ForeverScribe.Slash("go")
+	eq(W.polestar.target.owner, "ForeverScribe", "/fs go points it back")
+end)
+
 if FIXTURES then
 	dofile(ROOT .. "tests/lua/wow_stub.lua")
 	W.Reset(); W.ROOT = ROOT
@@ -1364,6 +1444,14 @@ if FIXTURES then
 	meet("GOSSIP_SHOW", "Creature-0-1-0-1-5150-00000001", "Nissa Firestone", "First Aid Trainer", "Ironforge", 1455, 0.5010, 0.5020)
 	meet("MERCHANT_SHOW", "Creature-0-1-0-1-990001-00000001", "Quartermaster Vell", "Supplies", "Elwynn Forest", 1429, 0.4400, 0.6600)
 	W.WriteSV(FIXTURES .. "/sv_v5.lua")
+	-- v0.7 fixture: the same character with Polestar loaded (what Guide.lua keeps for the agent)
+	dofile(ROOT .. "tests/lua/wow_stub.lua")
+	W.Reset(); W.ROOT = ROOT
+	W.FakePolestarGuide()
+	W.polestar.liveTarget = { map = 1436, x = 0.565, y = 0.329, title = "Gryan Stoutmantle", kind = "turnin",
+		next = { map = 1436, x = 0.5, y = 0.4, title = "Fly to Sentinel Hill", kind = "taxi" } }
+	W.Boot(); W.Advance(30)
+	W.WriteSV(FIXTURES .. "/sv_v7.lua")
 	print("\nfixtures written to " .. FIXTURES)
 end
 

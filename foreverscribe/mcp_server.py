@@ -113,14 +113,17 @@ TOOLS = {
     "waypoint": ("Where an NPC, object or spot is in WoW: Forever, plus ONE chat command to paste that puts a map pin and "
                  "an arrow on it (chosen for the character's loaded addons: ForeverScribe /scribe way, TomTom, Polestar, or "
                  "Forever's native pin). Query: a name with optional zone words ('first aid trainer stormwind'), npc=<id>, "
-                 "object=<id>, or 'x y zone'. Never invent coordinates: if it says not found or unknown, say so.",
+                 "object=<id>, or 'x y zone'. Sources: own sightings > shared sightings > forever-db > Wowhead. If it says "
+                 "'⚠ uncertain', tell the user plainly that the sources disagree, which spot the command uses and the other "
+                 "spot, and that talking to the NPC once lets them help fix it. Never invent coordinates.",
                  _obj({"query": _s("name [+ zone words], npc=<id>, object=<id>, or 'x y zone'"),
                        "addon": {"type": "string", "enum": ["scribe", "native", "tomtom", "polestar", "mappin"],
                                  "description": "force a command style (default: by the character's loaded addons)"}},
                       ["query"]),
                  lambda a: ["way"] + (["--addon", a["addon"]] if a.get("addon") else []) + str(a["query"]).split()),
     "npcs": ("NPCs the user's characters met in game (addon 0.5+): exact Forever position where they stood, visits, last date. "
-             "disagree=true lists only NPCs whose Wowhead Forever pin is off by more than 25 yd. These sightings beat Wowhead.",
+             "disagree=true lists only NPCs where forever-db or Wowhead Forever is off by more than 25 yd, and writes "
+             "correction drafts (files only, never sent). These sightings beat every database.",
              _obj({"search": _s("name, <subtitle> or npc id filter"), "disagree": {"type": "boolean"}}),
              lambda a: ["npcs"] + (["--disagree"] if a.get("disagree") else []) + (str(a["search"]).split() if a.get("search") else [])),
     "route": ("Multi-stop route walked in game with /fs go (arrow to each stop, next on arrival). action: add (query = NPC "
@@ -141,9 +144,17 @@ TOOLS = {
                   "character": CHAR},
                "required": ["action"], "additionalProperties": False},
               lambda a: _route_argv(a)),
+    "guide": ("Polestar (leveling-guide addon): the guide the character follows, step N of M, that step's open goals with "
+              "progress, Polestar's arrow target and next leg (flight/boat), ticks/skips and finished guides. Use before "
+              "advising what to do next in game.", _obj({"character": CHAR}), lambda a: ["guide"]),
+    "correction_draft": ("Draft (never send) a forever-db correction and a Wowhead comment for an NPC from the user's own "
+                         "sighting. Returns file paths; tell the user they are drafts for them to review and submit.",
+                         _obj({"npc": _s("npc id or name")}, ["npc"]),
+                         lambda a: ["correction", "draft"] + str(a["npc"]).split()),
     "doctor": ("Check the ForeverScribe setup (config, sources, receiver).", {"type": "object", "properties": {}}, lambda a: ["doctor"]),
 }
-NO_CHAR = ("gear", "rate", "craft", "wowhead", "ah_price", "doctor", "import_page", "waypoint", "npcs", "route")
+NO_CHAR = ("gear", "rate", "craft", "wowhead", "ah_price", "doctor", "import_page", "waypoint", "npcs", "route",
+           "correction_draft")
 
 
 def run_cli(argv, stdin_text=None):

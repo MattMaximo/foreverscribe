@@ -90,11 +90,29 @@ the data-only AH price file (`prices write`) the tooltip reads. See [`docs/CAPTU
 
 ## Waypoints ("where is the Stormwind First Aid trainer?")
 
-`foreverscribe way first aid trainer stormwind` (MCP `waypoint`) finds it on Wowhead Forever and prints one command
+`foreverscribe way first aid trainer stormwind` (MCP `waypoint`) finds it (your own sightings, then shared ones, then
+[forever-db](#data-sources), then Wowhead Forever) and prints one command
 to paste in chat, matched to your addons: `/scribe way 52.8 44.8 Stormwind City Shaina Fuller` sets Forever's own map
 pin and arrow (and hands it to Polestar's or TomTom's arrow if you use one). Without ForeverScribe 0.4 in game it
 prints the TomTom, Polestar or plain-Forever `/run` equivalent. The only thing the addon does here is set the map pin
 you asked for. Sources and the Stormwind/Mulgore map-redraw fix: [`docs/WAYPOINTS.md`](docs/WAYPOINTS.md).
+
+## Polestar and forever-db (0.7)
+
+- **Where things are, and how sure we are.** `way` now checks forever-db (Polestar's open database of spawn points)
+  next to Wowhead Forever and your own sightings. When the best two sources are more than 25 yards apart the answer
+  starts with **⚠ uncertain**: both spots, the distance, which one the command uses (your sighting > shared sightings
+  > forever-db > Wowhead), and how to help: talk to the NPC once and `foreverscribe correction draft <npc>` writes a
+  forever-db correction (its `corrections/npcs.json` format, with your in-game evidence) plus a Wowhead comment, as
+  files under `<data_dir>/upstream/`. Nothing is ever sent; you review and submit them yourself.
+- **Your Polestar guide.** With Polestar loaded, the addon reads (never changes) the guide it shows: guide, step N of
+  M, the step's open goals with progress, and its arrow's target and next leg. The sync agent also ships Polestar's
+  own SavedVariables (account `Polestar.lua` and each character's
+  `WTF/Account/<acct>/<realm>/<character>/SavedVariables/Polestar.lua`). `foreverscribe guide` (MCP `guide`) and one
+  line in `summary` give your agent "Polestar: Westfall step 11/70 — Sentinel Hill: Hand in …".
+- **Routes on Polestar's arrow.** `/fs go` hands each stop to Polestar's arrow (`Polestar.Nav.API.Navigate`, which
+  plans flights and boats) when Polestar is loaded, else Forever's own pin and arrow. Polestar's API takes one target,
+  so stops go one at a time; if its guide takes the arrow back, ForeverScribe says so once and `/fs go` re-points it.
 
 ## AH prices in your tooltips (0.6)
 
@@ -123,9 +141,18 @@ an arrow to each stop, the next one set as you arrive. The agent writes the rout
   `--remind 30`) prints one chat line after 30 minutes without a save. Off by default.
 - **Auction-house prices** (`ah`): off by default; see `[ah]` in [`config.example.toml`](config.example.toml) for why.
   With them on, `prices write` puts them into the game's item tooltips (next section).
-- **Other addons' SavedVariables** (e.g. Forever Forge): listed in `[sync] extra_saved_variables`, shipped alongside
-  and kept raw until a parser exists (`foreverscribe files`).
+- **Other addons' SavedVariables** (e.g. Forever Forge, Polestar): listed in `[sync] extra_saved_variables` (matched
+  in the account folder and every character's folder), shipped alongside; Polestar's is parsed, others kept raw until
+  a parser exists (`foreverscribe files`).
 - **Live strip** (macOS, advanced): `ForeverScribe_Live` + `foreverscribe/live_capture.py` stream events between saves.
+
+## Data sources
+
+- **forever-db** by Polestar (https://github.com/fitzforge/polestar, `forever-db/`), release 2026.11.1: NPC and object
+  spawn points. GPL-3.0 tables (with a CC BY 4.0 layer) — fetched at runtime and cached on your computer, never
+  bundled in this repository. Credits and licences: [`NOTICE.md`](NOTICE.md).
+- **Wowhead Forever** tooltips and map pins (cached 7 days).
+- **Your own sightings** and the shared [`data/npc-locations.json`](data/npc-locations.json).
 
 ## Repository layout
 

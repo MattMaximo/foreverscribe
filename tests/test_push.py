@@ -202,11 +202,11 @@ class PushTest(unittest.TestCase):
         self.start_rx()
         with open(os.path.join(self.sv, "ForeverForge.lua"), "w") as fh:
             fh.write("ForeverForgeDB = {\n\t[\"scan\"] = 1,\n}\n")
-        with open(os.path.join(self.sv, "Polestar.lua"), "w") as fh:
-            fh.write("PolestarDB = {}\n")
+        with open(os.path.join(self.sv, "Questie.lua"), "w") as fh:
+            fh.write("QuestieConfig = {}\n")
         out = self.sync("sv_v1.lua", key_id=p["key_id"])
         self.assertIn("pushed ACCT1/ForeverForge.lua", out)
-        self.assertNotIn("Polestar", out)
+        self.assertNotIn("Questie", out, "only files in extra_saved_variables are shipped")
         stored = os.path.join(self.data, "push", "Account", "ACCT1", "SavedVariables")
         self.assertEqual(sorted(os.listdir(stored)), ["ForeverForge.lua", "ForeverScribe.lua"])
         con = sqlite3.connect(os.path.join(self.data, "forever.db"))
@@ -214,9 +214,14 @@ class PushTest(unittest.TestCase):
         con.close()
         self.assertEqual(row, ("ForeverForge.lua", "unparsed"))
         # a file not listed in extra_saved_variables is refused even with a valid key
-        body = b"PolestarDB = {}"
-        h = auth.headers(p["key_id"], p["key"], "POST", "/v1/sv/ACCT1/Polestar.lua", body)
-        self.assertEqual(self.post("/v1/sv/ACCT1/Polestar.lua", body, h)[0], 400)
+        body = b"QuestieConfig = {}"
+        h = auth.headers(p["key_id"], p["key"], "POST", "/v1/sv/ACCT1/Questie.lua", body)
+        self.assertEqual(self.post("/v1/sv/ACCT1/Questie.lua", body, h)[0], 400)
+        # per-character: only listed files, never ForeverScribe.lua, never a path in the folder names
+        for path in ("/v1/sv/ACCT1/Realm/Char/Questie.lua", "/v1/sv/ACCT1/Realm/Char/ForeverScribe.lua",
+                     "/v1/sv/ACCT1/..%2F../Char/Polestar.lua", "/v1/sv/ACCT1/Realm/.%2E/Polestar.lua"):
+            h = auth.headers(p["key_id"], p["key"], "POST", path, body)
+            self.assertEqual(self.post(path, body, h)[0], 400, path)
 
     def test_rejects_truncated_and_bad_account(self):
         p = self.pair()

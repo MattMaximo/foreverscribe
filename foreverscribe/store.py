@@ -551,7 +551,7 @@ def ingest_live_file(con, path, now=None):
     return res
 
 
-DEFAULT_EXTRA = ("ForeverForge*.lua",)
+DEFAULT_EXTRA = ("ForeverForge*.lua", "Polestar.lua")
 
 
 def _kind(base, extra):
@@ -610,10 +610,20 @@ def ingest_raw_file(con, path, now=None, parser=None):
     if row and row["sha256"] == sha:
         res["status"] = "skipped"
         return res
+    status = "unparsed"
+    if os.path.basename(path) == "Polestar.lua":
+        from . import polestar
+        try:
+            with open(path, "rb") as fh:
+                status = "polestar:" + polestar.ingest(con, path, fh.read(), sha, st.st_mtime, now)
+            parser = "polestar"
+        except Exception as e:  # a parser problem never loses the file
+            status = "polestar:error %s" % e
     with con:
         con.execute("INSERT OR REPLACE INTO raw_files (path, account, name, sha256, size, mtime, ingested_at, parser, status)"
                     " VALUES (?,?,?,?,?,?,?,?,?)", (path, _account_from_path(path), os.path.basename(path), sha,
-                                                     st.st_size, int(st.st_mtime), now, parser, "unparsed"))
+                                                     st.st_size, int(st.st_mtime), now, parser, status))
+    res["parsed"] = status
     return res
 
 

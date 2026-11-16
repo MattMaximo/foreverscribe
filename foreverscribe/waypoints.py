@@ -5,12 +5,13 @@
   foreverscribe way <x> <y> <zone>   |   way <zone> <x> <y>
 Options: --for CHAR, --addon scribe|native|tomtom|polestar|mappin (force a command style), --json, --all
 
-Where locations come from, best first:
+Where locations come from, best first (resolve.py):
   1. your own characters' NPC sightings (addon 0.5+: where you stood when you talked to it) — "confirmed in game"
   2. data/npc-locations.json, sightings other ForeverScribe users shared (no personal data)
-  3. Wowhead Forever tooltips (nether.wowhead.com/forever, cached 7 days) and its name search.
-When 1 or 2 disagree with Wowhead by more than 25 yards the answer says so ("Wowhead's pin is ~X yd off").
-Coordinates are never guessed: no position from any of these means no command.
+  3. forever-db, Polestar's open database (spawn points; fetched once at runtime, foreverdb.py)
+  4. Wowhead Forever tooltips (nether.wowhead.com/forever, cached 7 days) and its name search.
+The best two sources with a position are compared: more than 25 yards apart is "⚠ uncertain" (both spots shown,
+which one the command uses, and how to help fix it). Coordinates are never guessed: no position, no command.
 
 Forever redrew four maps (Mulgore, Eastern Plaguelands, Redridge Mountains, Stormwind City). Wowhead Forever
 still carries the old Classic-frame points there next to the new ones, so on those maps every point that is
@@ -33,6 +34,8 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+
+from . import resolve as R
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _MAPS = None
@@ -417,39 +420,56 @@ def answer(query, char=None, force=None, show_all=False):
                 entity = {"kind": "npc", "id": local[0]["id"]}
             if not entity:
                 entity, others, _, why = search(query, near_map=ch.get("mapID"))
+                if not entity and not others:
+                    # Wowhead has nothing (or is unreachable): forever-db's names (exact name or <subtitle>)
+                    try:
+                        hits = R.FDB["find"](rest or words)
+                    except Exception:
+                        hits = []
+                    if zone:
+                        hits = [h for h in hits if (R.FDB["locate"](h["kind"], h["id"], zone) or {}).get("mapID") == zone] or hits
+                    if hits:
+                        entity = {"kind": hits[0]["kind"], "id": hits[0]["id"]}
+                        others = [{"kind": h["kind"], "id": h["id"], "name": h["name"], "subtitle": h["subtitle"],
+                                   "zone": None} for h in hits[1:]]
                 if not entity:
                     out["error"] = why
                     out["candidates"] = [{k: c[k] for k in ("kind", "id", "name", "subtitle", "zone")} for c in others[:6]]
                     return out
         ev = NPCS["evidence"](entity["id"], char) if entity["kind"] == "npc" else {}
         loc = locate(entity["kind"], entity["id"])
-        own_mid, own_spots, own_src, own_row = _npcs().spots_from(ev) if ev else (None, [], None, None)
-        if loc.get("error") and not own_spots:
-            out["error"] = loc["error"]
+        sources, wh, fd, own_row = R.gather(entity["kind"], entity["id"], ch, char, ev, loc)
+        if not sources:
+            out["error"] = loc.get("error") or "no source has a position for %s %s" % (entity["kind"], entity["id"])
+            if not loc.get("error"):
+                out.update({k: loc[k] for k in ("name", "subtitle", "zone", "url") if loc.get(k)})
+                out["notes"] = list(loc.get("notes") or []) + list((fd or {}).get("notes") or [])
+                out.pop("error")
+                out.update(kind=entity["kind"], id=entity["id"], spots=[], source="none", mapID=None)
             return out
-        if own_spots and own_mid in maps():
-            wh = loc if not loc.get("error") else {}
-            out.update({"kind": "npc", "id": entity["id"], "name": wh.get("name") or (own_row or {}).get("name") or "NPC %d" % entity["id"],
-                        "subtitle": wh.get("subtitle") or (own_row or {}).get("subtitle") or "",
-                        "source": own_src, "url": "https://www.wowhead.com/forever/npc=%d" % entity["id"], "notes": [],
-                        "zone": maps()[own_mid]["name"], "mapID": own_mid, "spots": own_spots, "confirmed": True})
-            if wh:
-                d, pin = _npcs().compare(own_mid, own_spots[0]["x"], own_spots[0]["y"], wh.get("spots"), wh.get("mapID"))
-                if d is not None and d > _npcs().DISAGREE_YARDS:
-                    out["wowhead_off_yards"] = int(round(d))
-                    out["notes"].append("Wowhead's pin is ~%d yd off (Wowhead Forever: %s %s, %s). Using where it was "
-                                        "actually met." % (round(d), wh.get("zone") or "?", num(pin["x"]), num(pin["y"])))
-                elif d is None and wh.get("spots") and wh.get("mapID") != own_mid:
-                    out["notes"].append("Wowhead Forever puts it in %s; it was met in %s." % (wh.get("zone") or "another zone",
-                                                                                          maps()[own_mid]["name"]))
-                elif not wh.get("spots"):
-                    out["notes"].append("Wowhead Forever has no position for it; this one is from the game.")
-            else:
-                out["notes"].append("Wowhead lookup failed (%s); location from the game." % loc.get("error"))
+        first = sources[0]
+        name = (wh.get("name") if not wh.get("error") else None) or (fd or {}).get("name") or (own_row or {}).get("name") \
+            or "%s %d" % (entity["kind"].upper(), entity["id"])
+        sub = (wh.get("subtitle") if not wh.get("error") else None) or (fd or {}).get("subtitle") or (own_row or {}).get("subtitle") or ""
+        out.update({"kind": entity["kind"], "id": entity["id"], "name": name, "subtitle": sub, "source": first["label"],
+                    "url": "https://www.wowhead.com/forever/%s=%d" % (entity["kind"], entity["id"]), "notes": [],
+                    "zone": first["zone"], "mapID": first["mapID"], "spots": [dict(x) for x in first["spots"]],
+                    "confirmed": first["key"] == "sighting", "sources": [
+                        {"key": x["key"], "label": x["label"], "zone": x.get("zone"), "mapID": x["mapID"],
+                         "spots": [{"x": p["x"], "y": p["y"]} for p in x["spots"][:6]]} for x in sources]})
+        if first["key"] != "wowhead":
+            if wh.get("error"):
+                out["notes"].append("Wowhead lookup failed (%s)." % wh["error"])
+            elif not wh.get("spots"):
+                out["notes"].append("Wowhead Forever has no position for it.")
         else:
-            out.update(loc)
+            out["notes"] += wh.get("notes") or []
+        if fd and fd.get("notes"):
+            out["notes"] += fd["notes"]
+        out["_sources"] = sources
         out["other_matches"] = [{k: c[k] for k in ("kind", "id", "name", "subtitle", "zone")} for c in others[:5]]
     if not out.get("spots") or not out.get("mapID"):
+        out.pop("_sources", None)
         if out.get("spots"):
             out["notes"].append("Zone %r is not a Forever map ForeverScribe knows; no command (coordinates above are "
                                 "Wowhead's)." % out.get("zone"))
@@ -458,6 +478,25 @@ def answer(query, char=None, force=None, show_all=False):
     out["spots"] = spots if show_all else spots[:6]
     out["more_spots"] = max(0, len(spots) - len(out["spots"]))
     best = spots[0]
+    srcs = out.pop("_sources", None)
+    if srcs:
+        ag = R.agreement(srcs, best)
+        out["agreement"] = ag
+        if ag["status"] == "uncertain":
+            out["uncertain"] = True
+        hint = R.fix_hint(ag, out.get("name"), out["id"], out.get("kind"))
+        if hint:
+            out["help_fix"] = hint
+        for o in ag.get("others") or []:
+            if o["key"] == "wowhead" and not o["agrees"]:
+                if o["yards"] is not None:
+                    out["wowhead_off_yards"] = o["yards"]
+                    out["notes"].append("Wowhead's pin is ~%d yd off (Wowhead Forever: %s %s, %s). Using %s." % (
+                        o["yards"], o.get("zone") or "?", num(o["x"]), num(o["y"]),
+                        "where it was actually met" if ag["using"] == "sighting" else R.LABEL[ag["using"]]))
+                else:
+                    out["notes"].append("Wowhead Forever puts it in %s; %s has it in %s." % (
+                        o.get("zone") or "another zone", R.LABEL[ag["using"]], out.get("zone")))
     title = out["name"] if entity else ""
     out["paste"], out["alternatives"] = commands(out["mapID"], best["x"], best["y"], title, ch, force, entity)
     out["fetched_at"] = time.strftime("%Y-%m-%d %H:%M")
@@ -479,6 +518,9 @@ def render(r):
         lines[0] += " %s, %s" % (num(s["x"]), num(s["y"]))
         lines.append("source: %s (%s)%s" % (r["source"], "; ".join(s["frames"]),
                                             ", %d yd from you" % s["yards"] if s.get("yards") is not None else ""))
+    lines += R.describe(r.get("agreement"))
+    if r.get("help_fix"):
+        lines.append(r["help_fix"])
     if r.get("paste"):
         lines += ["paste in chat:", "  " + r["paste"]["cmd"], "  (%s)" % r["paste"]["why"]]
         if r.get("addons_captured_at"):

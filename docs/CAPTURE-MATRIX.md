@@ -112,7 +112,8 @@ zones 250, mounts/pets/toys 1000 each, currencies 200, quest titles 3000, mail 5
 | Action bars | `HasAction`/`C_ActionBar.HasAction` (doc), `GetActionInfo` (ui) | login + ACTIONBAR_SLOT_CHANGED, only when changed | cold `actionbars.slots[slot] {type, id, name}` (slots 1-180) |
 | Macro names | `GetNumMacros`, `GetMacroInfo` (ui: MacroUI) — name only | login + UPDATE_MACROS, only when changed | cold `macros {account[], character[]}`; macro text is never stored |
 | Save reminder | `C_Timer.After`, `InCombatLockdown` | every 60 s check, off by default | prints one chat-frame line after N minutes without a save; never calls ReloadUI |
-| Other addons' SavedVariables | (sync agent, not the addon) | every save | files matching `[sync] extra_saved_variables` (default `ForeverForge*.lua`) are shipped and kept raw ("unparsed") until a real sample is inspected |
+| Other addons' SavedVariables | (sync agent, not the addon) | every save | files matching `[sync] extra_saved_variables` (default `ForeverForge*.lua`, `Polestar.lua`), in the account folder and every `WTF/Account/<acct>/<realm>/<char>/SavedVariables` folder, are shipped; `Polestar.lua` is parsed (`polestar.py`: PolestarDB / PolestarCharDB, unknown fields kept), others kept raw ("unparsed") until a real sample is inspected |
+| Polestar guide state (0.7, `Guide.lua`) | `Polestar.On` messages, `Polestar.Engine.GetTabs/GetStepView(i, true)/GetProgress/GetGuide/GetLiveStep`, `Polestar.Nav.API.Target/Active` (Polestar's documented API v1) | login + 2 s after a Polestar step/tab/guide change | `snapshot.polestar`: tabs (id, title, step N/M, done), active tab, current step title + open goals with progress, arrow target + next leg. Only when the real Polestar addon is loaded; read-only |
 
 ## v0.4: waypoints (an action the player types, not capture)
 

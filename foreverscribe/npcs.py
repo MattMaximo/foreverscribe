@@ -215,22 +215,31 @@ def listing(char=None, words=None, disagree=False, limit_yards=DISAGREE_YARDS, l
                 "y": round(r["y"], 1), "visits": r.get("count"), "last_seen": day(r.get("last_seen")),
                 "character": r["char_key"].split(":")[-1], "how": r.get("kind")}
         if disagree:
-            loc = WP.locate("npc", r["npc_id"])
-            if loc.get("error"):
-                item["wowhead"] = "lookup failed: " + loc["error"]
-                continue
-            d, pin = compare(r["map_id"], r["x"], r["y"], loc.get("spots"), loc.get("mapID"))
-            if d is None:
-                item["wowhead"] = ("no position on Wowhead Forever" if not loc.get("spots")
-                                   else "Wowhead puts it in %s" % (loc.get("zone") or "another zone"))
-                if loc.get("spots") and loc.get("mapID") == r["map_id"]:
+            from . import upstream as UP
+            d = UP.draft_row(dict(r), write=True)
+            c = d["compare"]
+            off = []
+            for key, label in (("foreverdb", "forever-db"), ("wowhead", "Wowhead")):
+                v = c.get(key)
+                if not v or v["status"] == "agrees":
                     continue
-            elif d <= limit_yards:
+                if v["status"] == "off":
+                    if v["yards"] <= limit_yards:
+                        continue
+                    off.append("%s ~%d yd off (%s, %s)" % (label, v["yards"], WP.num(v["x"]), WP.num(v["y"])))
+                    if key == "wowhead":
+                        item["off_yards"] = v["yards"]
+                    else:
+                        item["foreverdb_off_yards"] = v["yards"]
+                elif v["status"] == "other map":
+                    off.append("%s puts it in %s" % (label, v.get("zone") or "another zone"))
+                else:
+                    off.append("no position on %s" % label)
+            if not off:
                 continue
-            else:
-                pin = pin or {}
-                item["wowhead"] = "pin ~%d yd off (Wowhead: %s, %s)" % (round(d), WP.num(pin.get("x", 0)), WP.num(pin.get("y", 0)))
-                item["off_yards"] = int(round(d))
+            item["disagree"] = off
+            item["wowhead"] = next((o for o in off if "Wowhead" in o), None)
+            item["drafts"] = d["paths"]
         out.append(item)
         if len(out) >= limit:
             break
@@ -242,16 +251,19 @@ def render(r, disagree=False):
     if r.get("error"):
         return r["error"]
     if not r["npcs"]:
-        return ("No disagreements with Wowhead Forever above the threshold." if disagree else
+        return ("No disagreements with forever-db or Wowhead Forever above the threshold." if disagree else
                 "No NPC sightings yet. With ForeverScribe 0.5 in game, talk to NPCs (or target friendly ones up close), "
                 "then /reload.")
     lines = ["%d NPC%s %s" % (r["count"], "" if r["count"] == 1 else "s",
-                              "where Wowhead's pin disagrees with where you met them:" if disagree else "met in game:")]
+                              "where forever-db or Wowhead disagrees with where you met them (drafts written, nothing sent):" if disagree
+                              else "met in game:")]
     for n in r["npcs"]:
         lines.append("  %s%s (npc=%s) — %s %s, %s; %s visit%s, last %s by %s%s" % (
             n["name"] or "?", " <%s>" % n["subtitle"] if n.get("subtitle") else "", n["npcID"], n["zone"] or n["mapID"],
             WP.num(n["x"]), WP.num(n["y"]), n["visits"], "" if n["visits"] == 1 else "s", n["last_seen"], n["character"],
-            "; " + n["wowhead"] if n.get("wowhead") else ""))
+            "; " + "; ".join(n["disagree"]) if n.get("disagree") else ""))
+        for p in n.get("drafts") or []:
+            lines.append("      draft: " + p)
     return "\n".join(lines)
 
 

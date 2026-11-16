@@ -32,6 +32,9 @@ FS=<repo>/bin/foreverscribe     # one CLI; MCP alternative: `foreverscribe mcp` 
 Information tiers: HOT `$FS summary` (always first) → WARM focused commands (`equipment`, `inventory`, `professions
 --recipes`, `reputation`, `talents`, `quest`, `mail`, `auctions`, `vendor`, `currencies`, `history`, `gear`, `rate`,
 `craft`, `wowhead …`, `ah`) → COLD `$FS cold addons|keybinds|actionbars|macros` only when asked about their UI.
+`$FS guide`: their Polestar guide/step/goals (also one "Polestar:" line in `summary`). `$FS way` may say
+"⚠ uncertain" (sources disagree): tell them both spots and which one the command uses; `$FS correction draft <npc>`
+drafts a forever-db fix from their sighting (files only — never submit for them).
 `summary` ends with "New since last check": auction sales/expiries/outbids, new mail, level-ups, rare drops, deaths.
 Mention anything there that matters to the question.
 

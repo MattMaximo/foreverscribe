@@ -158,7 +158,7 @@ class Sightings(Sandbox):
         rc, out = self.run_main(NP.main, ["--disagree"])
         self.assertIn("Nissa Firestone", out)
         self.assertNotIn("Shaina Fuller", out, "agrees within 25 yd")
-        self.assertIn("pin ~", out)
+        self.assertRegex(out, r"Wowhead ~\d+ yd off")
         rc, out = self.run_main(NP.main, ["--json", "nissa"])
         self.assertEqual(json.loads(out)["npcs"][0]["npcID"], 5150)
 
