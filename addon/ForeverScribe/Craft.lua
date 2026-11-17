@@ -287,15 +287,18 @@ end
 -- Under the last reagent container; when that leaves no room above the Track Recipe row, in the bottom-left corner
 -- (left of Track Recipe) without the grey note; when that would cover reagents too, not at all.
 local function Place(f, form)
-	local below = (shown(form.OptionalReagents) and form.OptionalReagents) or (shown(form.Reagents) and form.Reagents) or nil
+	-- Optional reagents only count when the container actually has slots (Forever keeps an empty one shown).
+	local opt = form.OptionalReagents
+	local ot, ob = tonumber(get(opt, "GetTop")), tonumber(get(opt, "GetBottom"))
+	local optUsed = shown(opt) and ot and ob and (ot - ob) > 4 or false
+	local below = (optUsed and opt) or (shown(form.Reagents) and form.Reagents) or nil
 	local h = (f.n or 3) * ROW_H
 	local fb = tonumber(get(form, "GetBottom"))
 	local ab = below and tonumber(get(below, "GetBottom"))
-	local mode
-	if below and (not fb or not ab or ab - GAP - h >= fb + TRACK_ROW) then mode = "below"
-	elseif not ab or not fb or ab - 6 >= fb + 12 + h then mode = "corner"
-	else mode = "none" end
-	if mode == "none" then return false end
+	local mode = "below"
+	if not below then mode = "corner"
+	elseif fb and ab and ab - GAP - h < fb + TRACK_ROW then mode = "corner" end
+	f.mode, f.dbg = mode, { below = below and (below == opt and "optional" or "reagents") or "none", fb = fb, ab = ab, h = h }
 	local key = mode .. ":" .. tostring(below)
 	if f.placed ~= key then
 		f.placed = key
@@ -441,8 +444,30 @@ function K.Hook()
 	return true
 end
 
+function K.Debug()
+	local P = FS.Print or print
+	local pf, page, form = Window()
+	P(("craftdebug: window=%s page=%s form=%s formShown=%s loaded=%s tradeOpen=%s enabled=%s"):format(
+		tostring(pf ~= nil), tostring(page and shown(page)), tostring(form ~= nil), tostring(form and shown(form)),
+		tostring(ProfessionLoaded()), tostring(K.tradeOpen), tostring(K.Enabled())))
+	local rid = form and Selected(form)
+	local rec = rid and K.Recipe(rid)
+	local rows = rec and K.Rows(rec, { bop = BindsOnPickup(rec.product) })
+	P(("craftdebug: recipe=%s inPriceFile=%s rows=%s prices=%s"):format(tostring(rid), tostring(rec ~= nil),
+		tostring(rows and #rows), tostring(Data() ~= nil)))
+	local b = box
+	if b then
+		local d = b.dbg or {}
+		P(("craftdebug: box shown=%s mode=%s anchor=%s formBottom=%s anchorBottom=%s h=%s top=%s left=%s"):format(
+			tostring(shown(b)), tostring(b.mode), tostring(d.below), tostring(d.fb), tostring(d.ab), tostring(d.h),
+			tostring(get(b, "GetTop")), tostring(get(b, "GetLeft"))))
+	else P("craftdebug: no numbers frame yet") end
+	P("craftdebug: errors " .. tostring(FS.errors or 0) .. " last: " .. tostring(FS.lastError))
+end
+
 function K.Command(arg)
 	local db = FS.db or ForeverScribeDB
+	if tostring(arg or ""):lower() == "debug" then return K.Debug() end
 	arg = tostring(arg or ""):lower()
 	if db and db.settings and (arg == "on" or arg == "off") then db.settings.craftprices = arg end
 	if K.Enabled() then

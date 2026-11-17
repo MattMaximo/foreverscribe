@@ -10,7 +10,7 @@ local FS = ForeverScribe
 local U = FS.Util
 local Try, Call, Clean, Sanitize = U.Try, U.Call, U.Clean, U.Sanitize
 
-FS.VERSION = "0.8.2"
+FS.VERSION = "0.8.3"
 FS.SCHEMA = 1
 FS.EVENT_CAP = 4000
 FS.SESSION_CAP = 200

@@ -1346,10 +1346,10 @@ test("v8.2 placement: 1 reagent and 8 reagents stay under the list and above Tra
 	local l = panel()
 	eq(box().points[1][1], "BOTTOMLEFT"); eq(box().points[1][2], ProfessionsFrame.CraftingPage.SchematicForm)
 	eq(l[3], "Profit: +43s 85c", "no note in the corner: " .. show(l))
-	-- even less room: nothing, rather than covering the reagents
+	-- even less room: still shown in the corner (0.8.3: never silently hidden)
 	W.descExtra = 80
 	W.SelectRecipe(7892, 8)
-	eq(W.PanelText(), nil, "hidden when it would overlap")
+	truthy(W.PanelText(), "corner when there is no room")
 	eq(FS().errors or 0, 0, tostring(FS().lastError))
 end)
 
@@ -1490,7 +1490,7 @@ test("v8.2 do-not-touch: no writes and only getters on Blizzard's profession fra
 	ForeverScribe.Slash("craftprices off"); ForeverScribe.Slash("craftprices on")
 	truthy(#W.blizz.calls > 0, "the contract is being recorded")
 	eq(#W.blizz.writes, 0, "writes: " .. table.concat(W.blizz.writes, ", "))
-	local ok = { IsShown = true, GetRecipeInfo = true, GetBottom = true, GetFrameStrata = true, GetFrameLevel = true }
+	local ok = { IsShown = true, GetRecipeInfo = true, GetBottom = true, GetTop = true, GetFrameStrata = true, GetFrameLevel = true }
 	for _, c in ipairs(W.blizz.calls) do truthy(ok[c:match(":(.*)$")], "called " .. c) end
 	-- and no hooks of any kind in the source
 	local src = io.open(ROOT .. "addon/ForeverScribe/Craft.lua"):read("*a"):gsub("%-%-[^\n]*", "")

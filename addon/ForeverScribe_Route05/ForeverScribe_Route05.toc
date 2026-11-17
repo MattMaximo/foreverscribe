@@ -2,7 +2,7 @@
 ## Title: ForeverScribe route slot 05
 ## Notes: Holds a route your agent wrote; /fs go loads it. Load-on-demand: leave it enabled, it does nothing on its own.
 ## Author: ForeverScribe contributors
-## Version: 0.8.2
+## Version: 0.8.3
 ## Group: ForeverScribe
 ## LoadOnDemand: 1
 ## Dependencies: ForeverScribe
