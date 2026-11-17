@@ -1136,7 +1136,7 @@ test("route + npcs: read-only source (no input automation, reload, chat sends or
 		local toc = assert(fh):read("*a"); fh:close()
 		truthy(toc:find("## LoadOnDemand: 1", 1, true) and toc:find("## Dependencies: ForeverScribe", 1, true), n)
 		truthy(toc:find("## Interface: 16001", 1, true), n .. " interface")
-		truthy(toc:find("## Title: ForeverScribe · Route " .. i .. " (used by /fs go)", 1, true), n .. " title")
+		truthy(toc:find("## Title: ForeverScribe · Agent waypoints " .. i .. " of 3", 1, true), n .. " title")
 		truthy(toc:find("## Group: ForeverScribe", 1, true), n .. " grouped under ForeverScribe")
 		local body = assert(io.open(ROOT .. "addon/" .. n .. "/Route.lua")):read("*a")
 		truthy(body:find("ForeverScribe_RouteData = nil", 1, true), n .. " ships empty")
@@ -1654,7 +1654,7 @@ test("options: without the Settings API there is no panel; /scribe prints status
 	eq(Settings, nil)
 	eq(ForeverScribe.Options.Register(), false)
 	ForeverScribe.Slash("")
-	truthy(table.concat(W.chat, "\n"):find("v0.10.0", 1, true), "status line instead of a panel")
+	truthy(table.concat(W.chat, "\n"):find("v0.10.1", 1, true), "status line instead of a panel")
 	ForeverScribe_OnAddonCompartmentClick("ForeverScribe", "LeftButton")
 	ForeverScribe_OnAddonCompartmentEnter("ForeverScribe", UIParent)
 	ForeverScribe_OnAddonCompartmentLeave("ForeverScribe", UIParent)
@@ -1678,10 +1678,18 @@ test("options: registers one AddOns category with the toggles, dropdowns and sta
 	eq(#S.categories, 1); eq(S.categories[1].name, "ForeverScribe")
 	eq(#S.addOnCategories, 1, "listed under AddOns"); eq(S.addOnCategories[1], S.categories[1])
 	local rows = table.concat(kinds(), " | ")
-	for _, want in ipairs({ "# Prices", "AH prices in item tooltips", "Only while holding Shift",
-		"Craft cost & profit in the profession window", "Remind me to /reload after", "Waypoint arrow", "# Status" }) do
-		truthy(rows:find(want, 1, true), "missing row " .. want .. " in " .. rows)
+	eq(rows, "# Prices | AH prices in tooltips | Only with Shift | Craft profit | # General | Reload reminder | "
+		.. "Waypoint arrow | Minimap button | # Status | ForeverScribeStatusLineTemplate | ", "panel rows, in order (the button row has no label)")
+	-- short text: labels and dropdown choices fit without "…"; each tooltip is one short line
+	for _, i in ipairs(W.SettingsRows()) do
+		local label = i.data.setting and i.data.setting.name or i.data.name or ""
+		truthy(#label <= 22, "label too long: " .. label)
+		if i.data.tooltip then truthy(#i.data.tooltip <= 60 and not i.data.tooltip:find("\n"), "tooltip too long: " .. i.data.tooltip) end
+		if i.kind == "dropdown" then
+			for _, o in ipairs(i.data.options()) do truthy(#o.label <= 8, "dropdown choice too long: " .. o.label) end
+		end
 	end
+	eq(S.settings.FOREVERSCRIBE_NPCTARGET, nil, "NPC targeting stays a slash command"); eq(S.settings.FOREVERSCRIBE_PLAYED, nil)
 	for var, s in pairs(S.settings) do truthy(var:match("^FOREVERSCRIBE_"), var); eq(type(s.default), s.varType, var .. " default type") end
 	-- Shift row is a child of the tooltip row and greys out with it
 	local shiftInit
@@ -1691,7 +1699,7 @@ test("options: registers one AddOns category with the toggles, dropdowns and sta
 	local remindInit
 	for _, i in ipairs(W.SettingsRows()) do if i.data.setting == setting("FOREVERSCRIBE_REMIND") then remindInit = i end end
 	local opts = remindInit.data.options()
-	eq(#opts, 4); eq(opts[1].value, 0); eq(opts[1].label, "Off"); eq(opts[4].value, 60); eq(opts[3].label, "30 minutes")
+	eq(#opts, 4); eq(opts[1].value, 0); eq(opts[1].label, "Off"); eq(opts[4].value, 60); eq(opts[3].label, "30 min")
 	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
 end)
 
@@ -1708,7 +1716,8 @@ test("options: panel and slash commands write the same settings both ways", func
 	setting("FOREVERSCRIBE_REMIND"):SetValue(0); eq(ForeverScribe.ReminderMinutes(), 0)
 	setting("FOREVERSCRIBE_WAYADDON"):SetValue("native"); eq(db.wayAddon, "native")
 	setting("FOREVERSCRIBE_WAYADDON"):SetValue("auto"); eq(db.wayAddon, nil)
-	setting("FOREVERSCRIBE_NPCTARGET"):SetValue(false); eq(db.npcTarget, false)
+	setting("FOREVERSCRIBE_MINIMAP"):SetValue(false); eq(db.minimap, false); eq(ForeverScribeMinimapButton:IsShown(), false)
+	setting("FOREVERSCRIBE_MINIMAP"):SetValue(true); eq(db.minimap, nil); eq(ForeverScribeMinimapButton:IsShown(), true)
 	-- slash -> what the panel reads
 	ForeverScribe.Slash("tooltip on"); eq(setting("FOREVERSCRIBE_TOOLTIP"):GetValue(), true); eq(setting("FOREVERSCRIBE_TOOLTIP_SHIFT"):GetValue(), false)
 	ForeverScribe.Slash("tooltip shift"); eq(setting("FOREVERSCRIBE_TOOLTIP_SHIFT"):GetValue(), true); eq(setting("FOREVERSCRIBE_TOOLTIP"):GetValue(), true)
@@ -1720,10 +1729,12 @@ test("options: panel and slash commands write the same settings both ways", func
 	for _, i in ipairs(W.SettingsRows()) do if i.data.setting == setting("FOREVERSCRIBE_REMIND") then remindInit = i end end
 	local labels = {}
 	for _, o in ipairs(remindInit.data.options()) do labels[#labels + 1] = o.label end
-	eq(table.concat(labels, ","), "Off,15 minutes,30 minutes,45 minutes,60 minutes", "a slash value outside the list still shows")
+	eq(table.concat(labels, ","), "Off,15 min,30 min,45 min,60 min", "a slash value outside the list still shows")
 	ForeverScribe.Slash("way addon native"); eq(setting("FOREVERSCRIBE_WAYADDON"):GetValue(), "native")
-	ForeverScribe.Slash("npcs target on"); eq(setting("FOREVERSCRIBE_NPCTARGET"):GetValue(), true)
-	ForeverScribe.Slash("played off"); eq(setting("FOREVERSCRIBE_PLAYED"):GetValue(), false)
+	ForeverScribe.Slash("minimap off"); eq(setting("FOREVERSCRIBE_MINIMAP"):GetValue(), false)
+	ForeverScribe.Slash("minimap"); eq(setting("FOREVERSCRIBE_MINIMAP"):GetValue(), true, "no argument toggles")
+	ForeverScribe.Slash("npcs target off"); eq(db.npcTarget, false); ForeverScribe.Slash("npcs target on"); eq(db.npcTarget, nil)
+	ForeverScribe.Slash("played off"); eq(db.played, false)
 	-- an open panel is told to redraw after a slash command; a closed one is not
 	eq(S.notified.FOREVERSCRIBE_TOOLTIP, nil, "panel closed: no redraw")
 	S.panelShown = true
@@ -1745,7 +1756,7 @@ test("options: /scribe opens the panel; /scribe help lists commands; combat says
 	ForeverScribe.Slash("help")
 	truthy(lastChat():find("tooltip on|off|shift", 1, true) and lastChat():find("craftprices", 1, true), lastChat())
 	ForeverScribe.Slash("status")
-	truthy(table.concat(W.chat, "\n"):find("v0.10.0", 1, true))
+	truthy(table.concat(W.chat, "\n"):find("v0.10.1", 1, true))
 	W.combat = true
 	ForeverScribe.Slash("")
 	eq(#S.opened, 1, "not opened in combat")
@@ -1753,22 +1764,22 @@ test("options: /scribe opens the panel; /scribe help lists commands; combat says
 	eq(W.reloads, 0, "nothing reloads")
 end)
 
-test("options: status rows show version, last save, price age and how data reaches the agent", function()
+test("options: one short status line (version, last save, price age); no prices says so", function()
 	W.FakeSettings()
-	W.Prices(); W.Boot()
+	W.Boot()
+	eq(table.concat(W.RenderStatusRows(), "|"), "v0.10.1 · saved just now · no prices yet")
+	W.FakeSettings()
+	W.Reset(); W.FakeSettings(); W.Prices(); W.Boot()
 	W.time = W.time + 20 * 60
 	local rows = W.RenderStatusRows()
-	local all = table.concat(rows, "\n")
-	eq(#rows, 5, all)
-	truthy(rows[1]:find("ForeverScribe 0.10.0", 1, true), rows[1])
-	truthy(all:find("Last save: ", 1, true) and all:find("20 min ago", 1, true), all)
-	truthy(all:find("Prices: PvP Alliance, 6 items, scanned 34 min ago", 1, true), all)
-	truthy(all:find("Route slots used this session: 0 of 3", 1, true), all)
-	truthy(all:find("after /reload, logout or quit", 1, true), all)
+	eq(#rows, 1, table.concat(rows, "|"))
+	eq(rows[1], "v0.10.1 · saved 20 min ago · prices 34 min old")
+	W.time = W.time + 3 * 3600
+	eq(W.RenderStatusRows()[1], "v0.10.1 · saved 3 h ago · prices 4 h old")
 	-- the save button reloads only when clicked
 	local button
 	for _, i in ipairs(W.SettingsRows()) do if i.kind == "button" then button = i end end
-	truthy(button, "save button"); eq(W.reloads, 0)
+	truthy(button, "save button"); eq(button.data.text, "Save (/reload)"); eq(button.data.name, ""); eq(W.reloads, 0)
 	button.data.click(); eq(W.reloads, 1, "the player's click runs /reload")
 end)
 
@@ -1786,6 +1797,7 @@ test("compartment: TOC points at real globals; click opens the panel, hover show
 	for _, l in ipairs(GameTooltip.lines or {}) do seen[#seen + 1] = tostring(l.left) end
 	local text = table.concat(seen, "\n")
 	truthy(text:find("ForeverScribe", 1, true) and text:find("Click: options", 1, true), text)
+	truthy(text:find("v0.10.1 · saved", 1, true), text)
 	_G[W.TocField("ForeverScribe", "AddonCompartmentFuncOnLeave")]("ForeverScribe", UIParent)
 	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
 end)
@@ -1799,10 +1811,98 @@ test("addon list: every shipped addon has an icon and a readable title grouped u
 		truthy(W.TocField(n, "Title"):find("^ForeverScribe · "), n .. " title " .. W.TocField(n, "Title"))
 		eq(W.TocField(n, "Version") ~= nil, true)
 	end
-	eq(W.TocField("ForeverScribe_Prices", "Title"), "ForeverScribe · Prices (data)")
-	eq(W.TocField("ForeverScribe", "Version"), "0.10.0"); eq(ForeverScribe and ForeverScribe.VERSION or "0.10.0", "0.10.0")
+	eq(W.TocField("ForeverScribe_Prices", "Title"), "ForeverScribe · AH prices")
+	for i = 1, 3 do eq(W.TocField(string.format("ForeverScribe_Route%02d", i), "Title"), "ForeverScribe · Agent waypoints " .. i .. " of 3") end
+	for _, n in ipairs({ "ForeverScribe", "ForeverScribe_Prices", "ForeverScribe_Route01", "ForeverScribe_Live" }) do
+		truthy(#W.TocField(n, "Notes") <= 130, n .. " notes stay short")
+	end
+	eq(W.TocField("ForeverScribe", "Version"), "0.10.1"); eq(ForeverScribe and ForeverScribe.VERSION or "0.10.1", "0.10.1")
 	local toc = assert(io.open(ROOT .. "addon/ForeverScribe/ForeverScribe.toc")):read("*a")
 	truthy(toc:find("\nOptions.lua\n", 1, true) and toc:find("\nOptions.xml\n", 1, true), "Options files listed")
+	truthy(toc:find("\nMinimap.lua\n", 1, true), "Minimap.lua listed")
+end)
+
+test("minimap button: shown by default on the minimap edge; drag moves it and the angle survives /reload", function()
+	local S = W.FakeSettings()
+	W.Prices(); W.Boot()
+	local b = ForeverScribeMinimapButton
+	truthy(b and b.shown, "button created and shown")
+	eq(b.kind, "Button")
+	local p = b.points[#b.points]
+	eq(p[1], "CENTER"); eq(p[2], Minimap); eq(p[3], "CENTER")
+	local r = math.sqrt(p[4] ^ 2 + p[5] ^ 2)
+	truthy(math.abs(r - 75) < 0.01, "on the edge of a 140 px minimap: " .. r)
+	eq(ForeverScribe.Minimap.Angle(), ForeverScribe.Minimap.DEFAULT_ANGLE)
+	-- drag to the top of the minimap
+	W.DragMinimapButton(900, 900)
+	eq(ForeverScribeDB.settings.minimapAngle, 90)
+	p = b.points[#b.points]
+	truthy(math.abs(p[4]) < 0.01 and math.abs(p[5] - 75) < 0.01, "moved to the top: " .. p[4] .. "," .. p[5])
+	eq(b.scripts.OnUpdate, nil, "drag stops updating")
+	-- UI scale: cursor pixels are divided by the minimap's effective scale
+	Minimap.scale = 2
+	W.DragMinimapButton(1800 + 100, 1200)
+	eq(ForeverScribeDB.settings.minimapAngle, 0)
+	-- left-click opens the options; hover shows the status line
+	b.scripts.OnClick(b, "LeftButton")
+	eq(#S.opened, 1); eq(S.opened[1], S.categories[1]:GetID())
+	b.scripts.OnEnter(b)
+	local seen = {}
+	for _, l in ipairs(GameTooltip.lines or {}) do seen[#seen + 1] = tostring(l.left) end
+	local text = table.concat(seen, "\n")
+	truthy(text:find("ForeverScribe", 1, true) and text:find("v0.10.1 · saved just now · prices", 1, true) and text:find("Drag: move", 1, true), text)
+	b.scripts.OnLeave(b)
+	-- survives /reload; /scribe minimap off hides it and that survives too
+	W.Relog(true)
+	eq(ForeverScribe.Minimap.Angle(), 0)
+	truthy(ForeverScribeMinimapButton.shown)
+	ForeverScribe.Slash("minimap off")
+	eq(ForeverScribeMinimapButton.shown, false); eq(ForeverScribeDB.settings.minimap, false)
+	truthy(lastChat():find("minimap button off", 1, true), lastChat())
+	W.Relog(true)
+	eq(ForeverScribe.Minimap.button, nil, "hidden: not even created after /reload")
+	ForeverScribe.Slash("minimap on")
+	truthy(ForeverScribe.Minimap.button and ForeverScribe.Minimap.button.shown, "back on")
+	eq(W.reloads, 0); eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("minimap button: offsets for round and square minimaps; no Minimap frame is harmless", function()
+	local M
+	W.Boot(); M = ForeverScribe.Minimap
+	local x, y = M.Offset(0, 140, 140, "ROUND"); truthy(math.abs(x - 75) < 1e-9 and math.abs(y) < 1e-9)
+	x, y = M.Offset(45, 140, 140, "ROUND"); truthy(math.abs(x - 75 * math.sqrt(0.5)) < 1e-9)
+	x, y = M.Offset(45, 140, 140, "SQUARE"); truthy(math.abs(x - 75) < 1e-9 and math.abs(y - 75) < 1e-9, "square corner")
+	eq(M.AngleTo(0, 0, -1, 0), 180); eq(M.AngleTo(0, 0, 0, -1), 270)
+	ForeverScribeDB.settings.minimapAngle = "junk"; eq(M.Angle(), M.DEFAULT_ANGLE)
+	ForeverScribeDB.settings.minimapAngle = 450; eq(M.Angle(), 90)
+	-- a client without the Minimap frame: no button, no error
+	W.Reset(); Minimap = nil
+	W.Boot()
+	eq(ForeverScribe.Minimap.button, nil)
+	ForeverScribe.Slash("minimap on")
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("addon list: captured at login and again at logout, so a session that ends within seconds saves the current list", function()
+	W.addonList[1].version = "0.10.1"
+	W.Boot()
+	local a = C().addons
+	truthy(a and a.list and a.list[1].version == "0.10.1", "addon list stored at login, before any delayed scan")
+	ForeverScribeDB.chars[ForeverScribe.charKey].addons = { list = { { name = "Stale", version = "0.9.0" } }, capturedAt = 1 }
+	-- logout (or /reload) refreshes it before the game writes the file, even with no time for the delayed scan
+	W.Fire("PLAYER_LEAVING_WORLD"); W.Fire("PLAYER_LOGOUT")
+	local names = {}
+	for _, e in ipairs(C().addons.list) do names[#names + 1] = e.name end
+	truthy(not table.concat(names, ","):find("Stale", 1, true), "stale list replaced at logout: " .. table.concat(names, ","))
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("minimap source: no protected calls, no Blizzard frame changed (only our own button is parented to Minimap)", function()
+	local src = assert(io.open(ROOT .. "addon/ForeverScribe/Minimap.lua")):read("*a"):gsub("%-%-[^\n]*", "")
+	for _, bad in ipairs({ "SetCVar", "RunScript", "loadstring", "ReloadUI", "hooksecurefunc", "Minimap:Set", "Minimap.Set",
+		"Minimap:Hook", "Minimap:SetScript", "MinimapCluster", "SetParent", "SecureHandler" }) do
+		truthy(not src:find(bad, 1, true), "Minimap.lua uses " .. bad)
+	end
 end)
 
 test("options source: no protected calls; ReloadUI only inside the button's click handler", function()

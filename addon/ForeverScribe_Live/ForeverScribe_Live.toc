@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: ForeverScribe · Live (optional)
-## Notes: Optional, installed only with install.sh --live. Shows recent ForeverScribe events as a tiny pixel strip in the top-left corner while /scribe live on. Load-on-demand; does nothing until enabled.
+## Notes: Optional live event strip (/scribe live on). Off until you turn it on.
 ## Author: ForeverScribe contributors (pixel codec from chelinho139/wow-ai, MIT)
 ## Version: 0.3.0
 ## IconTexture: Interface\ICONS\INV_Scroll_04

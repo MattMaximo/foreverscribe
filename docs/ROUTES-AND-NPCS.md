@@ -124,7 +124,7 @@ WoW reads addon files only when an addon loads, and only discovers addon folders
 (research: chelinho139/wow-ai `docs/ARCHITECTURE.md`, measured on a live Forever client by 0xInuarashi/wow-forever-codex:
 files must exist at launch; a not-yet-loaded file is read fresh on first use; each load-on-demand addon loads once
 per UI session; `/reload` unloads them all). So the kit installs three tiny **route slot** addons,
-`ForeverScribe_Route01` … `ForeverScribe_Route03` ("ForeverScribe · Route 1–3 (used by /fs go)" in the AddOns list,
+`ForeverScribe_Route01` … `ForeverScribe_Route03` ("ForeverScribe · Agent waypoints 1–3 of 3" in the AddOns list,
 grouped under ForeverScribe; `## LoadOnDemand: 1`, one `Route.lua`, shipped empty; 0.5–0.9 shipped ten). The
 companion rewrites `Route.lua` in every installed slot; `/fs go` calls `C_AddOns.LoadAddOn` on the next slot not yet loaded
 this session, which reads the new file. The file is data only (`ForeverScribe_RouteData = {v=1, rev, name, created, stops={...}}`);

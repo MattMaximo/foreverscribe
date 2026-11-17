@@ -25,7 +25,7 @@ import urllib.request
 from . import __version__, config as C, relaycrypto as RC
 
 WAIT = 25
-STATUS_EVERY = 300
+STATUS_EVERY = 60  # also how soon a relay restart (empty disk) is noticed and route/prices re-sent
 ACTIVE_SECONDS = 15 * 60
 DOWN = {"route": "route", "prices": "prices"}
 

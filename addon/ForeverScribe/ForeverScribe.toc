@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: ForeverScribe
-## Notes: Read-only character journal for your AI agent (saved when you /reload or log out). Item tooltips show auction prices your agent wrote, the profession window shows craft cost and profit, /scribe way and /fs go set map pins. No network, no automation. Type /scribe for options.
+## Notes: Read-only journal for your AI agent, plus AH prices in tooltips, craft profit and waypoints. Type /scribe for options.
 ## Author: ForeverScribe contributors
-## Version: 0.10.0
+## Version: 0.10.1
 ## IconTexture: Interface\ICONS\INV_Scroll_04
 ## AddonCompartmentFunc: ForeverScribe_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: ForeverScribe_OnAddonCompartmentEnter
@@ -22,3 +22,4 @@ Craft.lua
 Guide.lua
 Options.lua
 Options.xml
+Minimap.lua

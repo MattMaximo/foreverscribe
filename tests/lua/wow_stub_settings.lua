@@ -9,10 +9,39 @@
 local W = _G.W
 local baseReset = W.Reset
 
+-- v0.10.1: the minimap (a 140x140 round frame centred at 900,600 at scale 1) and the few Button/Texture methods the
+-- minimap button uses. Frame methods are added to the shared frame metatable (the one UIParent uses).
+local FrameMT = getmetatable(UIParent)
+for _, m in ipairs({ "RegisterForClicks", "RegisterForDrag", "SetHighlightTexture", "SetTexture", "SetTexCoord",
+	"LockHighlight", "UnlockHighlight" }) do
+	FrameMT[m] = FrameMT[m] or function() end
+end
+function FrameMT:ClearAllPoints() self.points = {} end
+function FrameMT:SetPoint(...) self.points = self.points or {}; self.points[#self.points + 1] = { ... } end
+
 function W.Reset()
 	baseReset()
 	W.settings = nil -- set by W.FakeSettings()
 	Settings, SettingsPanel, CreateSettingsListSectionHeaderInitializer, CreateSettingsButtonInitializer = nil, nil, nil, nil
+	W.cursor = { 900, 600 }
+	GetMinimapShape = nil
+	Minimap = setmetatable({ events = {}, scripts = {}, textures = {}, shown = true, w = 140, h = 140, cx = 900, cy = 600, scale = 1 }, FrameMT)
+	function Minimap:GetWidth() return self.w end
+	function Minimap:GetHeight() return self.h end
+	function Minimap:GetCenter() return self.cx, self.cy end
+	function Minimap:GetEffectiveScale() return self.scale end
+	GetCursorPosition = function() return W.cursor[1], W.cursor[2] end
+	ForeverScribeMinimapButton = nil
+end
+
+-- Drag the minimap button so the cursor ends at (x, y) in screen pixels: OnDragStart, OnUpdate ticks, OnDragStop.
+function W.DragMinimapButton(x, y)
+	local b = ForeverScribeMinimapButton
+	b.scripts.OnDragStart(b)
+	W.cursor = { x, y }
+	if b.scripts.OnUpdate then b.scripts.OnUpdate(b, 0.016) end
+	b.scripts.OnDragStop(b)
+	return b
 end
 
 function W.FakeSettings()
@@ -66,7 +95,10 @@ function W.FakeSettings()
 		OpenToCategory = function(id) S.opened[#S.opened + 1] = id; S.panelShown = true end,
 	}
 	CreateSettingsListSectionHeaderInitializer = function(name, tooltip) return initializer("header", { name = name, tooltip = tooltip }) end
-	CreateSettingsButtonInitializer = function(name, text, click, tooltip) return initializer("button", { name = name, text = text, click = click }) end
+	CreateSettingsButtonInitializer = function(name, text, click, tooltip, addSearchTags)
+		assert(addSearchTags ~= nil, "the real CreateSettingsButtonInitializer asserts addSearchTags ~= nil")
+		return initializer("button", { name = name, text = text, click = click, tooltip = tooltip })
+	end
 	SettingsPanel = { IsShown = function() return S.panelShown end }
 	return S
 end

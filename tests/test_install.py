@@ -84,6 +84,30 @@ class MacInstaller(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.home, "Library")))
         self.assertFalse(os.path.exists(self.calls))
 
+    def test_reinstall_keeps_delivered_prices_but_not_a_foreign_file(self):
+        """0.10.1: re-running the installer used to replace a filled Prices.lua with the kit's empty one, so the game
+        showed no prices until the sync agent fetched them again (and the relay re-sent them)."""
+        r = self.run_kit("install.sh", "--addon-only")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        dest = os.path.join(self.addons, "ForeverScribe_Prices", "Prices.lua")
+        filled = ("-- ForeverScribe prices. Written by `foreverscribe prices write`; data only, the addon validates it.\n"
+                  "ForeverScribe_PriceData = {\n\tv = 1,\n\trev = \"1-abc\",\n\tcaptured = 1,\n\td = {\n\t\t[25] = \"1,1,1,1,1\",\n\t},\n}\n")
+        with open(dest, "w") as fh:
+            fh.write(filled)
+        r = self.run_kit("install.sh", "--addon-only")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("kept the AH prices already delivered", r.stdout)
+        with open(dest) as fh:
+            self.assertEqual(fh.read(), filled)
+        self.assertFalse(os.path.exists(self.support(".Prices.lua.keep")))
+        with open(dest, "w") as fh:
+            fh.write("print('not ours')\n")
+        r = self.run_kit("install.sh", "--addon-only")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("kept the AH prices", r.stdout)
+        with open(dest) as fh:
+            self.assertIn("ForeverScribe_PriceData = nil", fh.read())
+
     def test_requires_a_transport_choice(self):
         r = self.run_kit("install.sh")
         self.assertEqual(r.returncode, 2)
@@ -230,7 +254,8 @@ class MacInstaller(unittest.TestCase):
             names |= {os.path.relpath(os.path.join(base, f), MAC_KIT) for f in files}
         for need in ("install.sh", "uninstall.sh", "installers/macos/foreverscribe-sync.sh", "README.md", "LICENSE",
                      "LICENSE-wow-ai.txt", "addon/ForeverScribe/ForeverScribe.toc", "addon/ForeverScribe/Defaults.lua",
-                     "addon/ForeverScribe/Options.lua", "addon/ForeverScribe/Options.xml", "optional/ForeverScribe_Live/Live.lua"):
+                     "addon/ForeverScribe/Options.lua", "addon/ForeverScribe/Options.xml", "addon/ForeverScribe/Minimap.lua",
+                     "optional/ForeverScribe_Live/Live.lua"):
             self.assertIn(need, names)
         tops = {n.split("/")[1] for n in names if n.startswith("addon/")}
         self.assertEqual(tops, {"ForeverScribe", "ForeverScribe_Prices", "ForeverScribe_Route01", "ForeverScribe_Route02",

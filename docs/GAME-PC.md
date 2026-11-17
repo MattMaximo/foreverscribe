@@ -37,16 +37,17 @@ The sync agent runs as a per-user scheduled task ("ForeverScribe Sync", at logon
 
 1. Fully quit and restart WoW (needed once: new addon folders are only found at launch).
 2. At character select → AddOns, make sure **ForeverScribe** (scroll icon) is enabled. Its dropdown holds
-   **ForeverScribe · Prices (data)** and **ForeverScribe · Route 1–3 (used by /fs go)**: data-only helpers, leave
-   them ticked.
+   **ForeverScribe · AH prices** and **ForeverScribe · Agent waypoints 1–3 of 3**: data-only helpers your agent
+   fills (prices for tooltips, routes for `/fs go`); leave them ticked.
 3. Log in, type `/scribe status`, then `/reload`. Your agent sees it within a minute.
 
-Options (0.10): **Esc → Options → AddOns → ForeverScribe**, the minimap's addons button, or just `/scribe`. On/off for
-the AH prices in item tooltips (and "only while holding Shift"), craft cost & profit in the profession window, the
-/reload reminder (off/15/30/60 min), which waypoint arrow to use, NPC targeting notes and the login /played request,
-plus read-only status (version, last save, price age). Every switch is the same setting as its slash command.
+Options (0.10): **Esc → Options → AddOns → ForeverScribe**, the ForeverScribe minimap button (0.10.1; drag it around
+the edge, `/scribe minimap` hides it), the minimap's addons menu, or just `/scribe`. AH prices in tooltips (only with
+Shift), craft profit, reload reminder (off/15/30/60 min), waypoint arrow (Auto/Game), minimap button, and one status
+line (version, last save, price age). Every switch is the same setting as its slash command; NPC targeting notes and
+the login /played request stay slash-only (`/scribe npcs target on|off`, `/scribe played on|off`).
 
-In-game commands (`/scribe` or `/fs`): `help | status | last [n] | snapshot | errors | remind <min>|off | played on|off | tooltip on|off|shift | craftprices on|off | way <x> <y> [zone] [title]` (map pin + arrow; `way clear`, `way addon auto|native`) | `npcs` (NPCs noted; `npcs target off`) | `live on|off` (only with the optional Live addon).
+In-game commands (`/scribe` or `/fs`): `help | status | last [n] | snapshot | errors | remind <min>|off | played on|off | tooltip on|off|shift | craftprices on|off | minimap [on|off] | way <x> <y> [zone] [title]` (map pin + arrow; `way clear`, `way addon auto|native`) | `npcs` (NPCs noted; `npcs target off`) | `live on|off` (only with the optional Live addon).
 
 Routes from your agent: `/fs go` loads the route it wrote (arrow to each stop, next stop on arrival), `/fs next`,
 `/fs back`, `/fs route` (list), `/fs route clear`. Bind `/fs go` and "next stop" under Esc > Options > Keybindings >

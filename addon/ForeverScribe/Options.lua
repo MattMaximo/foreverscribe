@@ -3,8 +3,8 @@
 --
 -- Every control is a proxy setting over ForeverScribeDB.settings, the same keys the slash commands write, so the two
 -- always agree: the panel reads the table whenever it is drawn, and a slash command refreshes an open panel.
--- Read-only like the rest of the addon: no protected calls, nothing reloads by itself. The one button, "Save now",
--- runs /reload only when the player clicks it (the same thing typing /reload does).
+-- Read-only like the rest of the addon: no protected calls, nothing reloads by itself. The one button,
+-- "Save (/reload)", runs /reload only when the player clicks it (the same thing typing /reload does).
 -- Settings API shapes: Forever's Blizzard_Settings_Shared (Blizzard_Settings.lua RegisterVerticalLayoutCategory,
 -- RegisterProxySetting, CreateCheckbox, CreateDropdown, CreateControlTextContainer, RegisterAddOnCategory,
 -- OpenToCategory; Blizzard_SettingControls.lua CreateSettingsListSectionHeaderInitializer,
@@ -33,7 +33,7 @@ end
 ---------------------------------------------------------------------------
 
 -- The tooltip mode is one key, tooltip = "on" | "off" | "shift" (/scribe tooltip on|off|shift); the panel shows it
--- as two checkboxes: "AH prices in item tooltips" and, under it, "only while holding Shift".
+-- as two checkboxes: "AH prices in tooltips" and, under it, "Only with Shift".
 O.Values = {
 	FOREVERSCRIBE_TOOLTIP = {
 		type = "boolean", default = true,
@@ -65,6 +65,14 @@ O.Values = {
 		get = function() return settings().wayAddon == "native" and "native" or "auto" end,
 		set = function(v) settings().wayAddon = (v == "native") and "native" or nil end,
 	},
+	FOREVERSCRIBE_MINIMAP = {
+		type = "boolean", default = true,
+		get = function() return settings().minimap ~= false end,
+		set = function(v)
+			if FS.Minimap and FS.Minimap.Set then FS.Minimap.Set(v) elseif v then settings().minimap = nil else settings().minimap = false end
+		end,
+	},
+	-- Slash-command-only settings (not on the panel): /scribe npcs target on|off, /scribe played on|off.
 	FOREVERSCRIBE_NPCTARGET = {
 		type = "boolean", default = true,
 		get = function() return settings().npcTarget ~= false end,
@@ -92,10 +100,10 @@ function O.RemindChoices()
 	return out
 end
 
-function O.RemindLabel(m) return (m or 0) <= 0 and "Off" or (m .. " minutes") end
+function O.RemindLabel(m) return (m or 0) <= 0 and "Off" or (m .. " min") end
 
 ---------------------------------------------------------------------------
--- Status lines (read-only)
+-- Status line (read-only): "v0.10.1 · saved 2 min ago · prices 3 h old"
 ---------------------------------------------------------------------------
 
 local function now() return (Try(time)) or 0 end
@@ -109,34 +117,24 @@ local function ago(sec)
 end
 O.Ago = ago
 
-local function clockTime(t)
-	local s = type(date) == "function" and Clean((Try(date, "%H:%M", t))) or nil
-	return type(s) == "string" and s or "?"
-end
+local function age(sec) return (ago(sec):gsub(" ago$", " old"):gsub("^just now$", "fresh")) end
 
-function O.StatusLines(t)
+-- The game writes SavedVariables right before each UI session starts (login, /reload), so "saved" is that moment.
+function O.StatusLine(t)
 	t = t or now()
-	local lines = { "ForeverScribe " .. tostring(FS.VERSION) .. (FS.charKey and "" or " (no character yet)") }
+	local bits = { "v" .. tostring(FS.VERSION) }
 	local loaded = FS.state and FS.state.loadedAt
-	if loaded then
-		lines[#lines + 1] = string.format("Last save: %s (%s), when this session started", clockTime(loaded), ago(t - loaded))
-	else
-		lines[#lines + 1] = "Last save: when you logged in or last typed /reload"
-	end
+	if loaded then bits[#bits + 1] = "saved " .. ago(t - loaded) end
 	local P = FS.Tooltip and FS.Tooltip.Data and FS.Tooltip.Data()
 	if P and tonumber(P.captured) then
-		lines[#lines + 1] = string.format("Prices: %s, %d items, scanned %s", tostring(P.label or P.market or "auction house"),
-			tonumber(P.items) or 0, ago(t - P.captured))
+		bits[#bits + 1] = "prices " .. age(t - P.captured)
 	else
-		lines[#lines + 1] = "Prices: none loaded yet (your agent writes them; /reload picks them up)"
+		bits[#bits + 1] = "no prices yet"
 	end
-	local R = FS.Route
-	if R and R.SlotsUsed then
-		lines[#lines + 1] = string.format("Route slots used this session: %d of %d (/reload frees them)", R.SlotsUsed(), R.SLOTS)
-	end
-	lines[#lines + 1] = "Your agent sees new data after /reload, logout or quit (the game saves only then)."
-	return lines
+	return table.concat(bits, " · ")
 end
+
+function O.StatusLines(t) return { O.StatusLine(t) } end
 
 ---------------------------------------------------------------------------
 -- Panel
@@ -178,51 +176,39 @@ local function build()
 		elseif api("RegisterInitializer") then Settings.RegisterInitializer(category, init) end
 	end
 
+	-- Short labels only (Matt: "less text"); each control's tooltip holds one short line.
 	header(add, "Prices")
-	local tip = proxy(category, "FOREVERSCRIBE_TOOLTIP", "AH prices in item tooltips")
-	local tipInit = Settings.CreateCheckbox(category, tip,
-		"Auction-house prices your agent wrote, added to item tooltips. Same as /scribe tooltip on|off.")
-	local shift = proxy(category, "FOREVERSCRIBE_TOOLTIP_SHIFT", "Only while holding Shift")
-	local shiftInit = Settings.CreateCheckbox(category, shift,
-		"Show the prices only while you hold Shift. Same as /scribe tooltip shift.")
+	local tip = proxy(category, "FOREVERSCRIBE_TOOLTIP", "AH prices in tooltips")
+	local tipInit = Settings.CreateCheckbox(category, tip, "Auction prices on item tooltips.")
+	local shift = proxy(category, "FOREVERSCRIBE_TOOLTIP_SHIFT", "Only with Shift")
+	local shiftInit = Settings.CreateCheckbox(category, shift, "Show prices only while Shift is held.")
 	if shiftInit and shiftInit.SetParentInitializer and tipInit then
 		shiftInit:SetParentInitializer(tipInit, function() return O.Get("FOREVERSCRIBE_TOOLTIP") end)
 	end
-	local craft = proxy(category, "FOREVERSCRIBE_CRAFTPRICES", "Craft cost & profit in the profession window")
-	Settings.CreateCheckbox(category, craft,
-		"Material cost, what the item sells for, and the profit, next to the recipe you select. Same as /scribe craftprices on|off.")
+	local craft = proxy(category, "FOREVERSCRIBE_CRAFTPRICES", "Craft profit")
+	Settings.CreateCheckbox(category, craft, "Cost and profit in the profession window.")
 
-	header(add, "Saving and waypoints")
-	local remind = proxy(category, "FOREVERSCRIBE_REMIND", "Remind me to /reload after")
+	header(add, "General")
+	local remind = proxy(category, "FOREVERSCRIBE_REMIND", "Reload reminder")
 	Settings.CreateDropdown(category, remind, function()
 		local c = Settings.CreateControlTextContainer()
 		for _, m in ipairs(O.RemindChoices()) do c:Add(m, O.RemindLabel(m)) end
 		return c:GetData()
-	end, "One chat line when this session has gone that long without a save. It never reloads by itself. Same as /scribe remind <minutes>|off.")
+	end, "A chat reminder to /reload so your agent gets new data.")
 	local way = proxy(category, "FOREVERSCRIBE_WAYADDON", "Waypoint arrow")
 	Settings.CreateDropdown(category, way, function()
 		local c = Settings.CreateControlTextContainer()
-		c:Add("auto", "Auto (Polestar or TomTom when loaded)")
-		c:Add("native", "Game's own arrow")
+		c:Add("auto", "Auto")
+		c:Add("native", "Game")
 		return c:GetData()
-	end, "Which arrow /scribe way and /fs go use. Same as /scribe way addon auto|native.")
+	end, "Auto uses Polestar or TomTom when loaded.")
+	local mm = proxy(category, "FOREVERSCRIBE_MINIMAP", "Minimap button")
+	Settings.CreateCheckbox(category, mm, "Drag it around the minimap edge.")
 
-	header(add, "What it notes")
-	local npc = proxy(category, "FOREVERSCRIBE_NPCTARGET", "NPCs you target within 10 yards")
-	Settings.CreateCheckbox(category, npc,
-		"Notes where a friendly NPC stands when you target it up close (talking to one is always noted). Same as /scribe npcs target on|off.")
-	local played = proxy(category, "FOREVERSCRIBE_PLAYED", "Ask for /played at login")
-	Settings.CreateCheckbox(category, played,
-		"Records your time played once per login. Same as /scribe played on|off.")
-
-	header(add, "Status", "Read-only. Updated each time this page opens.")
-	for i = 1, #O.StatusLines() do
-		add(Settings.CreateElementInitializer("ForeverScribeStatusLineTemplate", { line = i }))
-	end
+	header(add, "Status")
+	add(Settings.CreateElementInitializer("ForeverScribeStatusLineTemplate", { line = 1 }))
 	if type(CreateSettingsButtonInitializer) == "function" and type(ReloadUI) == "function" then
-		add(CreateSettingsButtonInitializer("Hand everything to your agent now", "Save now (/reload)", function()
-			ReloadUI() -- only from the player's click on this button
-		end, "Same as typing /reload: the game saves, and your agent gets the new data on its next sync.", true))
+		add(CreateSettingsButtonInitializer("", "Save (/reload)", function() ReloadUI() end, nil, false))
 	end
 
 	Settings.RegisterAddOnCategory(category)
@@ -268,6 +254,13 @@ end
 -- Minimap addon compartment (TOC: AddonCompartmentFunc, AddonCompartmentFuncOnEnter, AddonCompartmentFuncOnLeave)
 ---------------------------------------------------------------------------
 
+-- Shared by the compartment entry and the minimap button.
+function O.FillTooltip(tt, extra)
+	tt:AddLine("ForeverScribe", 1, 0.82, 0)
+	tt:AddLine(O.StatusLine(), 1, 1, 1)
+	tt:AddLine(extra or "Click: options", 0.6, 0.8, 1)
+end
+
 function ForeverScribe_OnAddonCompartmentClick(addonName, buttonName)
 	O.Open()
 end
@@ -277,10 +270,7 @@ function ForeverScribe_OnAddonCompartmentEnter(addonName, button)
 	if not (tt and tt.SetOwner) then return end
 	pcall(function()
 		tt:SetOwner(button or UIParent, "ANCHOR_LEFT")
-		tt:AddLine("ForeverScribe", 1, 0.82, 0)
-		local lines = O.StatusLines()
-		for i = 2, math.min(#lines, 3) do tt:AddLine(lines[i], 1, 1, 1, true) end
-		tt:AddLine("Click: options", 0.6, 0.8, 1)
+		O.FillTooltip(tt)
 		tt:Show()
 	end)
 end

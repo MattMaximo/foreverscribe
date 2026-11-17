@@ -91,13 +91,21 @@ fi
 TS="$(date +%Y%m%d-%H%M%S)"
 run mkdir -p "$SUPPORT"
 MANIFEST="$SUPPORT/install-manifest.txt"
-[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.10.0"; [ "$LIVE" = 1 ] && echo "live=1"; true; } > "$MANIFEST.new"
+[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.10.1"; [ "$LIVE" = 1 ] && echo "live=1"; true; } > "$MANIFEST.new"
 
 # A new pairing (other receiver, relay channel or transport) must get every file once, even ones unchanged since
 # they were delivered somewhere else: forget what was "already pushed".
 if [ -n "$PAIR" ] && [ -d "$SUPPORT/pushed" ]; then run rm -rf "$SUPPORT/pushed"; say "   new pairing: every file is sent once again"; fi
 
 say "1) Addon -> $ADDONS"
+# Prices your agent already delivered stay in place: the kit's Prices.lua is empty, and replacing a filled one meant
+# "no prices" in game until the sync agent fetched them again. Only a file that looks like ours is kept.
+KEPT_PRICES=""
+if [ -f "$ADDONS/ForeverScribe_Prices/Prices.lua" ] && head -c 200 "$ADDONS/ForeverScribe_Prices/Prices.lua" | grep -q '^-- ForeverScribe prices' \
+	&& grep -q '^ForeverScribe_PriceData = {$' "$ADDONS/ForeverScribe_Prices/Prices.lua"; then
+	KEPT_PRICES="$SUPPORT/.Prices.lua.keep"
+	run cp "$ADDONS/ForeverScribe_Prices/Prices.lua" "$KEPT_PRICES"
+fi
 for d in $ADDON_DIRS; do
 	if [ -e "$ADDONS/$d" ]; then
 		if [ -f "$SUPPORT/installed-$d" ]; then
@@ -110,6 +118,9 @@ for d in $ADDON_DIRS; do
 		fi
 	fi
 	run cp -R "$(src_of "$d")" "$ADDONS/$d"
+	if [ "$d" = ForeverScribe_Prices ] && [ -n "$KEPT_PRICES" ]; then
+		run mv -f "$KEPT_PRICES" "$ADDONS/$d/Prices.lua"; say "   kept the AH prices already delivered"
+	fi
 	run touch "$SUPPORT/installed-$d"
 	[ $DRY -eq 0 ] && echo "addon=$ADDONS/$d" >> "$MANIFEST.new"
 done

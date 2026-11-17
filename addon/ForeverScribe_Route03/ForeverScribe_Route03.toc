@@ -1,8 +1,8 @@
 ## Interface: 16001
-## Title: ForeverScribe · Route 3 (used by /fs go)
-## Notes: Holds a route your agent wrote; /fs go reads it. Data only and load-on-demand: leave it enabled, it does nothing on its own.
+## Title: ForeverScribe · Agent waypoints 3 of 3
+## Notes: Waypoints your agent sends for /fs go. Leave it enabled.
 ## Author: ForeverScribe contributors
-## Version: 0.10.0
+## Version: 0.10.1
 ## IconTexture: Interface\ICONS\INV_Scroll_04
 ## Group: ForeverScribe
 ## LoadOnDemand: 1

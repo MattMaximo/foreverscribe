@@ -104,7 +104,7 @@ if (-not $AddonOnly -and -not $pushUrl -and -not $relayUrl -and -not $Folder) {
 if (Get-Process -Name "Wow*" -ErrorAction SilentlyContinue) { Say "Note: WoW is running. Fully quit and restart it to load new addons." }
 
 $ts = Get-Date -Format "yyyyMMdd-HHmmss"
-$man = [ordered]@{ installedAt = $ts; wowDir = $wow; version = "0.10.0"; live = $WantLive }
+$man = [ordered]@{ installedAt = $ts; wowDir = $wow; version = "0.10.1"; live = $WantLive }
 if ($prevMan) {
     foreach ($p in $prevMan.PSObject.Properties) { if ($p.Name -like "backup_*") { $man[$p.Name] = $p.Value } }
 }
@@ -117,6 +117,16 @@ if ($Pair -and (Test-Path (Join-Path $Support "pushed"))) {
 }
 
 Say "1) Addon -> $addons"
+# Prices your agent already delivered stay in place (the kit's Prices.lua is empty). Only a file that looks like ours.
+$keptPrices = $null
+$oldPrices = Join-Path $addons "ForeverScribe_Prices\Prices.lua"
+if (Test-Path $oldPrices) {
+    $head = Get-Content $oldPrices -TotalCount 4 -ErrorAction SilentlyContinue
+    if ($head -and ($head[0] -like "-- ForeverScribe prices*") -and ($head -contains "ForeverScribe_PriceData = {")) {
+        $keptPrices = Join-Path $Support ".Prices.lua.keep"
+        Do-It "keep the delivered prices" { New-Item -ItemType Directory -Force -Path $Support | Out-Null; Copy-Item $oldPrices $keptPrices -Force }
+    }
+}
 foreach ($d in $AddonDirs) {
     $target = Join-Path $addons $d
     if (Test-Path $target) {
@@ -129,6 +139,10 @@ foreach ($d in $AddonDirs) {
     }
     $src = Src-Of $d
     Do-It "copy addon\$d -> $target" { Copy-Item $src $target -Recurse -Force; New-Item -ItemType File -Force -Path (Join-Path $Support "installed-$d") | Out-Null }
+    if ($d -eq "ForeverScribe_Prices" -and $keptPrices) {
+        Do-It "restore the delivered prices" { Move-Item $keptPrices (Join-Path $target "Prices.lua") -Force }
+        Say "   kept the AH prices already delivered"
+    }
 }
 foreach ($d in $Retired) {
     $marker = Join-Path $Support "installed-$d"

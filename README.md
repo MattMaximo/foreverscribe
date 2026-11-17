@@ -159,8 +159,8 @@ an arrow to each stop, the next one set as you arrive. The agent writes the rout
 - **Other addons' SavedVariables** (e.g. Forever Forge, Polestar): listed in `[sync] extra_saved_variables` (matched
   in the account folder and every character's folder), shipped alongside; Polestar's is parsed, others kept raw until
   a parser exists (`foreverscribe files`).
-- **Options panel** (0.10): Esc → Options → AddOns → ForeverScribe, the minimap addons button, or `/scribe`: on/off
-  for the price tooltip and craft profit, the save reminder, the waypoint arrow, plus status.
+- **Options panel** (0.10): Esc → Options → AddOns → ForeverScribe, the ForeverScribe minimap button (drag to move,
+  `/scribe minimap` hides it), or `/scribe`: price tooltip, craft profit, reload reminder, waypoint arrow, status.
 - **Live strip** (macOS, advanced, opt-in): `install.sh --live` adds `ForeverScribe_Live`; `foreverscribe/live_capture.py`
   then reads events off the screen between saves. Not installed by default.
 

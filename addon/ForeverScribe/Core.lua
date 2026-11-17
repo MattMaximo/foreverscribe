@@ -10,7 +10,7 @@ local FS = ForeverScribe
 local U = FS.Util
 local Try, Call, Clean, Sanitize = U.Try, U.Call, U.Clean, U.Sanitize
 
-FS.VERSION = "0.10.0"
+FS.VERSION = "0.10.1"
 FS.SCHEMA = 1
 FS.EVENT_CAP = 4000
 FS.SESSION_CAP = 200
@@ -1168,8 +1168,8 @@ end
 -- Cold tier: stored only when the content changed, so the file and the companion stay quiet.
 local COLD = { addons = "Addons", bindings = "Bindings", actionbars = "ActionBars", macros = "Macros" }
 FS.COLD = COLD
-function FS.ScanCold(which)
-	if not char or state.leaving then return end
+function FS.ScanCold(which, force)
+	if not char or (state.leaving and not force) then return end
 	for k, fn in pairs(COLD) do
 		if not which or which == k then
 			local ok, data = pcall(Col[fn])
@@ -1333,6 +1333,9 @@ local function Baseline()
 	state.money = char.snapshot.money
 	state.ready = true
 	state.loadedAt = now() -- the client wrote SavedVariables right before this UI session began
+	-- The addon list is complete at login and cheap to read: take it now, not only in the delayed full scan, so a
+	-- session that ends within seconds (an update, then an immediate /reload) still saves the current list.
+	pcall(FS.ScanCold, "addons")
 	FS.Schedule("remind", 60, FS.ReminderTick)
 	FS.Schedule("scanall", 3, function() FS.ScanAll(true) end)
 	-- Some data (reputation list, exploration) isn't ready a few seconds after login; rescan once.
@@ -1409,6 +1412,7 @@ function H.PLAYER_LOGOUT()
 	FS.FlushAccum("REPUTATION_CHANGED"); FS.FlushAccum("CURRENCY_CHANGED")
 	state.leaving = true
 	pcall(FS.SnapshotFast)
+	pcall(FS.ScanCold, "addons", true) -- addon metadata only (no unit reads): the saved list matches this session
 	local s = char.sessions[#char.sessions]
 	if s and s.id == session then
 		s.ended = now()
@@ -1904,7 +1908,7 @@ local function describe(ev)
 	return ev.type .. " " .. table.concat(bits, " ")
 end
 
-local HELP = "/scribe (options) | help | status | last [n] | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title] | way addon auto|native | go | next | back | route [clear|slots] | npcs [target on|off] | tooltip on|off|shift | craftprices on|off | guide | live on|off"
+local HELP = "/scribe (options) | help | status | last [n] | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title] | way addon auto|native | go | next | back | route [clear|slots] | npcs [target on|off] | tooltip on|off|shift | craftprices on|off | minimap [on|off] | guide | live on|off"
 
 local SlashCommand
 function FS.Slash(msg)
@@ -1963,6 +1967,8 @@ function SlashCommand(msg)
 		if FS.Tooltip then FS.Tooltip.Command(arg) else Print("the price tooltip needs ForeverScribe 0.6 (restart the game after updating)") end
 	elseif cmd == "craftprices" or cmd == "craft" then
 		if FS.Craft then FS.Craft.Command(arg) else Print("craft prices need ForeverScribe 0.8 (restart the game after updating)") end
+	elseif cmd == "minimap" or cmd == "button" then
+		if FS.Minimap then FS.Minimap.Command(arg) else Print("the minimap button needs ForeverScribe 0.10.1 (restart the game after updating)") end
 	elseif cmd == "guide" or cmd == "polestar" then
 		if FS.Guide then FS.Guide.Command() else Print("reading Polestar needs ForeverScribe 0.7 (restart the game after updating)") end
 	elseif cmd == "played" then

@@ -12,7 +12,7 @@ waypoint + arrow; arriving within the stop's radius (default 15 yd) sets the nex
 goes back, /fs route lists, /fs route clear stops.
 
 How the route reaches the game. WoW reads addon files only when they load, so the kit installs three small
-load-on-demand "route slot" addons (ForeverScribe_Route01-03, "ForeverScribe · Route 1-3" in the AddOns list; 0.5-0.9
+load-on-demand "route slot" addons (ForeverScribe_Route01-03, "ForeverScribe · Agent waypoints 1-3 of 3" in the AddOns list; 0.5-0.9
 shipped ten). `route write` rewrites Route.lua in every installed slot; /fs go loads the next slot not used yet this
 session, which reads the file fresh. A slot loads once per session: three new routes, then /reload frees them (your
 place on the route is kept in SavedVariables, and /fs go on the same route carries on without a slot).
