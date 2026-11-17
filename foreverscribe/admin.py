@@ -177,6 +177,12 @@ LAUNCHAGENT = """<?xml version="1.0" encoding="UTF-8"?>
 
 
 def cmd_receiver(argv):
+    if any(a in ("-h", "--help", "help") for a in argv[:1]):
+        _p("usage: foreverscribe receiver [run|health|launchagent [--write] [--label L]]\n"
+           "  run          serve pushes (default; address and port from [receiver] in config.toml)\n"
+           "  health       check the configured receiver URL\n"
+           "  launchagent  print (or --write) a macOS LaunchAgent that keeps the receiver running")
+        return 0
     sub = argv[0] if argv and not argv[0].startswith("-") else "run"
     rest = argv[1:] if argv and not argv[0].startswith("-") else argv
     cfg = C.load()
