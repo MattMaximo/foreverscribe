@@ -5,7 +5,7 @@ files are skipped by hash), then answers from the local SQLite store. Output is
 compact text by default; --json gives machine output.
 
 Info tiers: HOT = `summary` (always first). WARM = focused commands. COLD = `cold ...` (only when asked).
-Setup: `setup`, `pair`, `receiver`, `doctor`, `config`. Agents: `mcp` (stdio MCP server).
+Setup: `setup`, `pair`, `receiver`, `relay`, `doctor`, `config`. Agents: `mcp` (stdio MCP server).
 """
 
 import argparse
@@ -485,13 +485,14 @@ COMMANDS = {
 }
 
 # Commands that don't read the telemetry store (setup, transport, agent integrations, game data).
-TOOLS = ("setup", "pair", "receiver", "doctor", "config", "mcp", "ah", "wowhead", "gear", "rate", "craft", "aca", "page", "version",
+TOOLS = ("setup", "pair", "receiver", "relay", "doctor", "config", "mcp", "ah", "wowhead", "gear", "rate", "craft", "aca", "page", "version",
          "way", "npcs", "route", "prices", "correction", "foreverdb")
 WOWHEAD_ALIASES = ("gear", "rate", "craft", "aca", "page")
 
 
 EPILOG = """more commands:
   setup | pair | receiver [run|health|launchagent] | doctor | config [path|show]   setup and transport
+  relay pair|sync|status|unpair         hosted relay: game and agent computers on different networks
   mcp                                   stdio MCP server for Claude / Codex / Hermes / any MCP client
   way <npc|object|x y zone>             where it is + the chat command that pins it with an arrow
   npcs [--disagree|--export-shared]     NPCs met in game (true positions); --disagree: where forever-db/Wowhead are off
@@ -592,6 +593,9 @@ def run_tool(argv):
     if cmd == "foreverdb":
         from . import foreverdb
         return foreverdb.main(rest)
+    if cmd == "relay":
+        from . import relay
+        return relay.main(rest)
     if cmd == "mcp":
         from . import mcp_server
         return mcp_server.main(rest)

@@ -325,6 +325,8 @@ def targets(cfg, want="auto"):
         out.append(("folder", os.path.join(folder, "_prices", "Prices.lua")))
     if want in ("auto", "http", "all") and (mode == "http" or want != "auto"):
         out.append(("http", os.path.join(price_dir(cfg), "Prices.lua")))
+    if want in ("auto", "relay") and mode == "relay":
+        out.append(("relay", os.path.join(price_dir(cfg), "Prices.lua")))
     return out
 
 
@@ -374,6 +376,12 @@ def write(cfg=None, want="auto", market=None, force=False, now=None, log=None):
     st.update(written_at=now, written_to=done, notes=notes, fetched=fresh, scan=snap.get("capturedAt"),
               unchanged=prev.get("rev") == st["rev"])
     _atomic(os.path.join(price_dir(cfg), "written.json"), json.dumps(st))
+    if any(d["transport"] == "relay" for d in done):
+        try:
+            from . import relay
+            relay.push_down(cfg)
+        except Exception as e:  # `relay sync` retries
+            notes.append("not uploaded to the relay yet (%s); `foreverscribe relay sync` sends it when it can" % e)
     if not done:
         raise ValueError("nowhere to deliver the prices: " + ("; ".join(notes) or
                          "set transport.mode (local with wow.dir, folder, or http) with `foreverscribe setup`"))

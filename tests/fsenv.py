@@ -11,7 +11,9 @@ os.environ["FOREVERSCRIBE_CONFIG"] = os.path.join(_SANDBOX, "no-config.toml")
 os.environ["FOREVERSCRIBE_DATA"] = os.path.join(_SANDBOX, "data")
 os.environ["FOREVERSCRIBE_PUSH_URL"] = ""
 os.environ["FOREVERSCRIBE_FOREVERDB"] = "off"  # never download forever-db in tests; tests that need it stub resolve.FDB
-for k in ("FOREVERSCRIBE_DB", "FOREVERSCRIBE_SOURCES", "FOREVERSCRIBE_CHAR", "WOWGG_KEY", "FOREVERSCRIBE_ALLOW"):
+for k in ("FOREVERSCRIBE_DB", "FOREVERSCRIBE_SOURCES", "FOREVERSCRIBE_CHAR", "WOWGG_KEY", "FOREVERSCRIBE_ALLOW",
+          "FOREVERSCRIBE_RELAY_URL", "FOREVERSCRIBE_RELAY_CH", "FOREVERSCRIBE_RELAY_SECRET", "FOREVERSCRIBE_RELAY_KEY_FILE",
+          "FOREVERSCRIBE_SUPPORT", "FOREVERSCRIBE_GAME_CONF"):
     os.environ.pop(k, None)
 
 

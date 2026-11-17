@@ -11,6 +11,7 @@ Open Terminal in this folder, then one of:
 ```sh
 ./install.sh --addon-only                          # your agent runs on this Mac
 ./install.sh --pair fs1.xxxxxxxx                   # push to your agent's computer (code from `foreverscribe pair`)
+./install.sh --pair fs2.xxxxxxxx                   # through a hosted relay (code from `foreverscribe relay pair`)
 ./install.sh --folder "$HOME/Dropbox/ForeverScribe"   # or any synced folder: iCloud Drive, OneDrive, Google Drive…
 ```
 
@@ -24,7 +25,7 @@ Open PowerShell in this folder, then one of:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -AddonOnly
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -Pair fs1.xxxxxxxx
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Pair fs1.xxxxxxxx     # or the fs2.… code from `foreverscribe relay pair`
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -Folder "$env:USERPROFILE\Dropbox\ForeverScribe"
 ```
 
@@ -54,6 +55,8 @@ prices every ~30 minutes; the game reads them at login or `/reload`. `/scribe to
   that name is backed up first and restored on uninstall).
 - macOS: `~/Library/Application Support/ForeverScribe/` and `~/Library/LaunchAgents/io.foreverscribe.sync.plist`.
 - Windows: `%LOCALAPPDATA%\ForeverScribe\` and the "ForeverScribe Sync" scheduled task.
+- With an fs2 (relay) code, files are encrypted on this computer before they leave it; the relay only holds
+  ciphertext. The key is in `relay.key` in the folder above (readable only by you).
 - It reads `WTF/Account/*/SavedVariables/ForeverScribe.lua` plus files listed in `--extra` (default
   `ForeverForge*.lua Polestar.lua`), both in the account folder and in each character's
   `WTF/Account/<acct>/<realm>/<character>/SavedVariables/` folder (Polestar keeps your guide progress there).

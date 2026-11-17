@@ -8,17 +8,23 @@ writes inside the WoW folder are Interface\AddOns\ForeverScribe_RouteNN\Route.lu
   foreverscribe-sync.ps1 -Watch     keep running: check every 10 s (what the logon task runs)
 
 Settings: %LOCALAPPDATA%\ForeverScribe\game.json (written by install.ps1):
-  wowDir, pushUrl + keyId (key in pairing.key), folderDest, extraSv (globs, default ForeverForge*.lua and Polestar.lua; matched in each
+  wowDir, pushUrl + keyId (key in pairing.key), relayUrl + relayCh (upload token and encryption key in relay.key;
+  fs2 codes, files are encrypted end to end before they leave this PC), folderDest, extraSv (globs, default ForeverForge*.lua and Polestar.lua; matched in each
   accounts SavedVariables and every characters WTF\Account\<acct>\<realm>\<char>\SavedVariables)
 Pushes are signed with HMAC-SHA256 (same scheme as foreverscribe/auth.py). Failed pushes wait in
 spool\ (newest copy per file) and are retried on every pass.
 #>
-param([switch]$Watch, [switch]$VerboseLog, [string]$Support = "")
+param([switch]$Watch, [switch]$VerboseLog, [string]$Support = "",
+      [string]$RelaySeal = "", [string]$RelayOpen = "", [string]$InFile = "", [string]$OutFile = "")
 
 $ErrorActionPreference = "Stop"
+# Windows PowerShell 5.1 may not offer TLS 1.2 by default; the hosted relay (https) needs it
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
 if (-not $Support) { $Support = Join-Path $env:LOCALAPPDATA "ForeverScribe" }
 $ConfPath = Join-Path $Support "game.json"
 $KeyPath = Join-Path $Support "pairing.key"
+$RelayKeyPath = Join-Path $Support "relay.key"
+$RelayGot = Join-Path $Support "relay-got"
 $LogPath = Join-Path $Support "sync.log"
 $StateDir = Join-Path $Support "pushed"
 $SpoolDir = Join-Path $Support "spool"
@@ -30,14 +36,17 @@ function Log([string]$msg) {
 }
 
 function Load-Conf {
-    $c = @{ wowDir = "C:\Program Files (x86)\World of Warcraft\_forever_"; pushUrl = ""; keyId = ""; folderDest = ""; extraSv = @("ForeverForge*.lua", "Polestar.lua") }
+    $c = @{ wowDir = "C:\Program Files (x86)\World of Warcraft\_forever_"; pushUrl = ""; keyId = ""; relayUrl = ""; relayCh = ""; folderDest = ""; extraSv = @("ForeverForge*.lua", "Polestar.lua") }
     if (Test-Path $ConfPath) {
         $j = Get-Content $ConfPath -Raw | ConvertFrom-Json
         foreach ($p in $j.PSObject.Properties) { $c[$p.Name] = $p.Value }
     }
     if ($env:FOREVERSCRIBE_WOW_DIR) { $c.wowDir = $env:FOREVERSCRIBE_WOW_DIR }
     if ($null -ne $env:FOREVERSCRIBE_PUSH_URL) { $c.pushUrl = $env:FOREVERSCRIBE_PUSH_URL }
+    if ($null -ne $env:FOREVERSCRIBE_RELAY_URL) { $c.relayUrl = $env:FOREVERSCRIBE_RELAY_URL }
+    if ($env:FOREVERSCRIBE_RELAY_CH) { $c.relayCh = $env:FOREVERSCRIBE_RELAY_CH }
     $c.pushUrl = ([string]$c.pushUrl).TrimEnd("/")
+    $c.relayUrl = ([string]$c.relayUrl).TrimEnd("/")
     return $c
 }
 
@@ -70,7 +79,153 @@ function Push-Once($c, [string]$path, [string]$file) {
     }
 }
 
+# ---- relay transport (fs2): end-to-end encrypted blobs in a hosted mailbox. Same envelope as foreverscribe/relaycrypto.py:
+# AES-256-CBC (PKCS7) + HMAC-SHA256 over channel, blob id, header and ciphertext (encrypt-then-MAC, checked first).
+$script:Relay = $null
+function Utf8([string]$s) { return , ([System.Text.Encoding]::UTF8.GetBytes($s)) }
+function Join-Bytes([object[]]$parts) {
+    $ms = New-Object System.IO.MemoryStream
+    foreach ($p in $parts) { $ms.Write([byte[]]$p, 0, $p.Length) }
+    return , $ms.ToArray()
+}
+function Hmac-Hex([string]$key, [byte[]]$data) {
+    $h = New-Object System.Security.Cryptography.HMACSHA256 (, [System.Text.Encoding]::UTF8.GetBytes($key))
+    return Hex $h.ComputeHash($data)
+}
+function Relay-Keys($c) {
+    if ($script:Relay) { return $script:Relay }
+    if (-not (Test-Path $RelayKeyPath)) { Log "no relay key at $RelayKeyPath (re-run install.ps1 -Pair <fs2 code>)"; return $null }
+    $lines = @(Get-Content $RelayKeyPath | Where-Object { $_.Trim() })
+    if ($lines.Count -lt 2 -or -not $c.relayCh) { Log "relay settings incomplete (re-run install.ps1 -Pair <fs2 code>)"; return $null }
+    $h = New-Object System.Security.Cryptography.HMACSHA256 (, [System.Text.Encoding]::UTF8.GetBytes($lines[1].Trim()))
+    $script:Relay = @{ token = $lines[0].Trim(); ch = [string]$c.relayCh; url = [string]$c.relayUrl
+        ek = $h.ComputeHash((Utf8 "fs2 enc")); mk = (Hex $h.ComputeHash((Utf8 "fs2 mac"))) }
+    return $script:Relay
+}
+function Relay-Bid($r, [string]$logical) { return (Hmac-Hex $r.mk (Utf8 "fs2 name|$logical")).Substring(0, 32) }
+function Relay-Tag($r, [string]$bid, [byte[]]$body) { return Hmac-Hex $r.mk (Join-Bytes @((Utf8 "fs2|$($r.ch)|$bid`n"), $body)) }
+function Gzip-Bytes([byte[]]$data) {
+    $ms = New-Object System.IO.MemoryStream
+    $gz = New-Object System.IO.Compression.GZipStream($ms, [System.IO.Compression.CompressionMode]::Compress)
+    $gz.Write($data, 0, $data.Length); $gz.Close()
+    return , $ms.ToArray()
+}
+function Gunzip-Bytes([byte[]]$data) {
+    $gz = New-Object System.IO.Compression.GZipStream((New-Object System.IO.MemoryStream (, $data)), [System.IO.Compression.CompressionMode]::Decompress)
+    $out = New-Object System.IO.MemoryStream
+    $gz.CopyTo($out); $gz.Close()
+    return , $out.ToArray()
+}
+function Aes-Cbc($r, [byte[]]$iv, [byte[]]$data, [bool]$decrypt) {
+    $aes = [System.Security.Cryptography.Aes]::Create()
+    $aes.Mode = [System.Security.Cryptography.CipherMode]::CBC
+    $aes.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7
+    $aes.Key = $r.ek; $aes.IV = $iv
+    $t = if ($decrypt) { $aes.CreateDecryptor() } else { $aes.CreateEncryptor() }
+    try { return , $t.TransformFinalBlock($data, 0, $data.Length) } finally { $t.Dispose(); $aes.Dispose() }
+}
+function Relay-Seal($r, [string]$logical, [byte[]]$data) {
+    $bid = Relay-Bid $r $logical
+    $iv = New-Object byte[] 16
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($iv)
+    $hdr = [System.Text.Encoding]::ASCII.GetBytes("FS2E1" + ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds()).ToString("D12") + (Hex $iv))
+    $body = Join-Bytes @($hdr, (Aes-Cbc $r $iv (Join-Bytes @((Utf8 "$logical`n"), (Gzip-Bytes $data))) $false))
+    return @{ bid = $bid; blob = (Join-Bytes @($body, [System.Text.Encoding]::ASCII.GetBytes((Relay-Tag $r $bid $body)))) }
+}
+function Relay-Open($r, [byte[]]$blob, [string]$bid, [string]$expected) {
+    # the MAC is checked before anything is decrypted; returns the file bytes or $null
+    if ($blob.Length -lt 130 -or [System.Text.Encoding]::ASCII.GetString($blob, 0, 5) -ne "FS2E1") { return $null }
+    $body = New-Object byte[] ($blob.Length - 64); [Array]::Copy($blob, $body, $body.Length)
+    $tag = [System.Text.Encoding]::ASCII.GetString($blob, $blob.Length - 64, 64).ToLowerInvariant()
+    if ((Relay-Tag $r $bid $body) -ne $tag) { Log "relay blob failed authentication: ignored"; return $null }
+    $ivHex = [System.Text.Encoding]::ASCII.GetString($blob, 17, 32)
+    $iv = New-Object byte[] 16
+    for ($i = 0; $i -lt 16; $i++) { $iv[$i] = [Convert]::ToByte($ivHex.Substring(2 * $i, 2), 16) }
+    $ct = New-Object byte[] ($body.Length - 49); [Array]::Copy($body, 49, $ct, 0, $ct.Length)
+    try { $plain = Aes-Cbc $r $iv $ct $true } catch { return $null }
+    $nl = [Array]::IndexOf($plain, [byte]10)
+    if ($nl -lt 1 -or [System.Text.Encoding]::UTF8.GetString($plain, 0, $nl) -cne $expected) { Log "relay blob is not ${expected}: ignored"; return $null }
+    $gz = New-Object byte[] ($plain.Length - $nl - 1); [Array]::Copy($plain, $nl + 1, $gz, 0, $gz.Length)
+    try { return , (Gunzip-Bytes $gz) } catch { return $null }
+}
+function Http-Code($err) { if ($err.Exception.Response) { return [int]$err.Exception.Response.StatusCode }; return 0 }
+
+function Relay-Put($c, [string]$acct, [string]$name, [string]$file) {
+    $r = Relay-Keys $c
+    if (-not $r) { return 2 }
+    $s = Relay-Seal $r "sv/$acct/$name" ([System.IO.File]::ReadAllBytes($file))
+    try {
+        $resp = Invoke-WebRequest -Uri "$($r.url)/v1/ch/$($r.ch)/files/up/$($s.bid)" -Method Put -Body $s.blob `
+            -Headers @{ Authorization = "Bearer $($r.token)" } -ContentType "application/octet-stream" -TimeoutSec 120 -UseBasicParsing
+        if ($resp.StatusCode -eq 200) { return 0 }
+        return 1
+    } catch {
+        $code = Http-Code $_
+        if ($code -eq 403 -or $code -eq 404) { Log "relay refused $acct/$name ($code): channel unpaired or relay redeployed. On your agent computer run: foreverscribe relay pair --force, then re-install here with the new code"; return 2 }
+        if ($code -eq 413) { Log "relay refused $acct/${name}: too big even compressed"; return 2 }
+        return 1
+    }
+}
+
+function Relay-Pickup($c) {
+    # one small poll per pass; fetch the route / price blob only when its seq moved and its addon is installed
+    $addons = Join-Path $c.wowDir "Interface\AddOns"
+    if (-not (Test-Path $addons)) { return }
+    $r = Relay-Keys $c
+    if (-not $r) { return }
+    $auth = @{ Authorization = "Bearer $($r.token)" }
+    try { $ev = Invoke-RestMethod -Uri "$($r.url)/v1/ch/$($r.ch)/events?since=0" -Headers $auth -TimeoutSec 20 -UseBasicParsing }
+    catch {
+        $code = Http-Code $_
+        if ($code -eq 403 -or $code -eq 404) { Log "relay refused the poll ($code): channel unpaired or relay redeployed. On your agent computer run: foreverscribe relay pair --force" }
+        return
+    }
+    $want = @{ (Relay-Bid $r "route") = "route"; (Relay-Bid $r "prices") = "prices" }
+    New-Item -ItemType Directory -Force -Path $RelayGot | Out-Null
+    foreach ($f in @($ev.files)) {
+        if (-not $f -or -not ([string]$f.name).StartsWith("down/")) { continue }
+        $b = ([string]$f.name).Substring(5)
+        $name = $want[$b]
+        if (-not $name) { continue }
+        $gotFile = Join-Path $RelayGot $name
+        [long]$have = 0
+        if (Test-Path $gotFile) { [long]::TryParse((Get-Content $gotFile -Raw).Trim(), [ref]$have) | Out-Null }
+        if ([long]$f.seq -le $have) { continue }
+        if ($name -eq "prices" -and -not (Test-Path (Join-Path $addons "ForeverScribe_Prices\ForeverScribe_Prices.toc"))) { continue }
+        if ($name -eq "route" -and -not (Get-ChildItem $addons -Directory -Filter "ForeverScribe_Route??" -ErrorAction SilentlyContinue)) { continue }
+        $tmp = Join-Path $Support "relay-download.tmp"
+        try { Invoke-WebRequest -Uri "$($r.url)/v1/ch/$($r.ch)/files/$($f.name)" -Headers $auth -OutFile $tmp -TimeoutSec 60 -UseBasicParsing }
+        catch { continue }
+        $bytes = [System.IO.File]::ReadAllBytes($tmp)
+        $data = Relay-Open $r $bytes $b $name
+        Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+        if ($null -ne $data) {
+            # the signed time inside the envelope must not go backwards: a relay can't roll us back to an older file
+            [long]$ts = 0; [long]::TryParse([System.Text.Encoding]::ASCII.GetString($bytes, 5, 12), [ref]$ts) | Out-Null
+            $tsFile = Join-Path $RelayGot "$name.t"
+            [long]$last = 0
+            if (Test-Path $tsFile) { [long]::TryParse((Get-Content $tsFile -Raw).Trim(), [ref]$last) | Out-Null }
+            if ($ts -lt $last) { Log "relay offered an older $name than the one installed: ignored" }
+            else {
+                $text = [System.Text.Encoding]::UTF8.GetString($data)
+                if ($name -eq "route") { Install-Route $c $text "relay" } else { Install-Prices $c $text "relay" }
+                Set-Content -Path $tsFile -Value "$ts" -NoNewline -Encoding ASCII
+            }
+        }
+        Set-Content -Path $gotFile -Value "$($f.seq)" -NoNewline -Encoding ASCII   # a bad file is not fetched again until a new one
+    }
+}
+
 function Push-File($c, [string]$acct, [string]$name, [string]$file) {
+    if ($c.relayUrl) {
+        for ($i = 1; $i -le 3; $i++) {
+            $rc = Relay-Put $c $acct $name $file
+            if ($rc -eq 0) { return $true }
+            if ($rc -eq 2) { return $false }
+            if ($i -lt 3) { Start-Sleep -Seconds ($i * 2) }
+        }
+        return $false
+    }
     if (-not $c.pushUrl) { return $false }
     # $acct is "<acct>" or "<acct>/<realm>/<char>" (a per-character file); each folder name is percent-encoded
     $parts = $acct -split '/'
@@ -109,11 +264,11 @@ function Stable-Complete([string]$f) {
 function Ship($c, [string]$acct, [string]$name, [string]$src) {
     $pushed = Join-Path (Join-Path $StateDir $acct) $name
     $spooled = Join-Path (Join-Path $SpoolDir $acct) $name
-    $needPush = [bool]$c.pushUrl -and -not (Same $src $pushed)
+    $needPush = ([bool]$c.pushUrl -or [bool]$c.relayUrl) -and -not (Same $src $pushed)
     $dest = $null; $needCopy = $false
     if ($c.folderDest) { $dest = Join-Path (Join-Path $c.folderDest $acct) $name; $needCopy = -not (Same $src $dest) }
     if (-not $needPush -and -not $needCopy) { return }
-    if (-not (Stable-Complete $src)) { Log "skip $acct/$name: still changing or incomplete"; return }
+    if (-not (Stable-Complete $src)) { Log "skip $acct/${name}: still changing or incomplete"; return }
     if ($needPush) {
         New-Item -ItemType Directory -Force -Path (Split-Path $pushed), (Split-Path $spooled) | Out-Null
         Copy-Item $src "$spooled.tmp" -Force; Move-Item "$spooled.tmp" $spooled -Force
@@ -252,12 +407,14 @@ function Prices-Pickup($c) {
 }
 
 function Pass {
+    $script:Relay = $null   # re-read relay.key / game.json every pass: a re-install with a new code takes effect at once
     $c = Load-Conf
-    if (-not $c.pushUrl -and -not $c.folderDest) { if ($VerboseLog) { Log "no transport configured (local mode)" }; return }
+    if (-not $c.pushUrl -and -not $c.relayUrl -and -not $c.folderDest) { if ($VerboseLog) { Log "no transport configured (local mode)" }; return }
     Route-Pickup $c
     Prices-Pickup $c
+    if ($c.relayUrl) { Relay-Pickup $c }
     $accounts = Join-Path $c.wowDir "WTF\Account"
-    if ($c.pushUrl -and (Test-Path $SpoolDir)) {
+    if (($c.pushUrl -or $c.relayUrl) -and (Test-Path $SpoolDir)) {
         foreach ($s in Get-ChildItem $SpoolDir -Recurse -Filter *.lua -File) {
             # <spool>\<acct>\<file> or <spool>\<acct>\<realm>\<char>\<file>
             $rel = $s.Directory.FullName.Substring((Get-Item $SpoolDir).FullName.Length).TrimStart('\', '/')
@@ -301,6 +458,17 @@ function Pass {
 }
 
 New-Item -ItemType Directory -Force -Path $Support | Out-Null
+if ($RelaySeal -or $RelayOpen) {  # troubleshooting / tests: encrypt or decrypt one file with this install's relay key
+    $r = Relay-Keys (Load-Conf)
+    if (-not $r) { exit 1 }
+    if ($RelaySeal) {
+        $s = Relay-Seal $r $RelaySeal ([System.IO.File]::ReadAllBytes($InFile))
+        [System.IO.File]::WriteAllBytes($OutFile, $s.blob); Write-Output $s.bid; exit 0
+    }
+    $d = Relay-Open $r ([System.IO.File]::ReadAllBytes($InFile)) (Relay-Bid $r $RelayOpen) $RelayOpen
+    if ($null -eq $d) { exit 1 }
+    [System.IO.File]::WriteAllBytes($OutFile, $d); exit 0
+}
 if ($Watch) {
     Log "watching (every 10 s)"
     while ($true) {

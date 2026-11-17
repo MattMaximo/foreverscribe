@@ -1,0 +1,39 @@
+# DigitalOcean App Platform spec for the ForeverScribe relay (docs/RELAY.md).
+# The dashboard path (docs/RELAY.md) doesn't need this file: App Platform finds the Dockerfile at the repository root.
+# With doctl: replace OWNER with your GitHub user and both change-me values, then doctl apps create --spec .do/app.yaml
+name: foreverscribe-relay
+region: nyc
+services:
+  - name: relay
+    github:
+      repo: OWNER/foreverscribe
+      branch: main
+      deploy_on_push: false      # docs pushes don't restart the relay; deploy from the dashboard when relay/ changes
+    source_dir: /
+    dockerfile_path: Dockerfile
+    http_port: 8080
+    instance_count: 1          # exactly one: blobs live on this instance's local disk
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    health_check:
+      http_path: /v1/health
+      initial_delay_seconds: 5
+      period_seconds: 30
+      timeout_seconds: 5
+      failure_threshold: 3
+    envs:
+      - key: RELAY_SECRET          # signs the channel tokens; keep it the same forever (changing it revokes every pairing)
+        scope: RUN_TIME
+        type: SECRET
+        value: change-me
+      - key: RELAY_CREATE_SECRET   # invite code: `foreverscribe relay pair --secret <this>` needs it to make a channel
+        scope: RUN_TIME
+        type: SECRET
+        value: change-me
+      - key: RELAY_MAX_TOTAL_MB
+        scope: RUN_TIME
+        value: "1024"
+      - key: RELAY_TTL_DAYS
+        scope: RUN_TIME
+        value: "7"
+alerts:
+  - rule: DEPLOYMENT_FAILED

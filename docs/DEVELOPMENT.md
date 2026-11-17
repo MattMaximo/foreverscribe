@@ -28,6 +28,19 @@ python3 -m unittest discover -s tests          # Python + the Lua addon suite (t
 tools/lua/bin/lua tests/lua/test_addon.lua tests/fixtures   # Lua only; also regenerates the synthetic fixtures
 ```
 
+Relay (0.9): the server's own tests and the live end-to-end test in `tests/test_relay.py` need its venv; the
+PowerShell interop checks need `pwsh` on PATH (macOS: the portable `osx-arm64` tarball is enough). Without them those
+tests skip and the Windows sync agent is only parse-checked.
+
+```sh
+python3 -m venv relay/.venv && relay/.venv/bin/pip install -r relay/requirements-dev.txt
+relay/.venv/bin/python -m unittest discover -s relay -p 'test_*.py'
+```
+
+The envelope format is shared by `foreverscribe/relaycrypto.py`, the macOS sync agent (`relay_seal`/`relay_open`)
+and the Windows one (`Relay-Seal`/`Relay-Open`): change all three together and regenerate
+`tests/fixtures/relay_vector.json`.
+
 Fixtures in `tests/fixtures/` are produced by the simulated client (`tests/lua/wow_stub*.lua`) on the synthetic realm
 `Forever-Test`; never commit a real SavedVariables file.
 

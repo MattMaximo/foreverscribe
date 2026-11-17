@@ -27,3 +27,7 @@ tools/lua/
 tools/src/
 research/
 .DS_Store
+
+# relay server: local venv and test data
+relay/.venv/
+relay-data/

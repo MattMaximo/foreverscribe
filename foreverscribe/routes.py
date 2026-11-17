@@ -182,6 +182,8 @@ def targets(cfg, want="auto"):
         out.append(("folder", os.path.join(folder, "_route", "Route.lua")))
     if want in ("auto", "http", "all") and (mode == "http" or want != "auto"):
         out.append(("http", os.path.join(route_dir(cfg), "Route.lua")))
+    if want in ("auto", "relay") and mode == "relay":
+        out.append(("relay", os.path.join(route_dir(cfg), "Route.lua")))
     return out
 
 
@@ -211,7 +213,19 @@ def write(cfg=None, want="auto", name=None, now=None):
     _atomic(os.path.join(route_dir(cfg), "Route.lua"), text)  # the receiver serves this copy (http mode)
     d.update(rev=rev, written_at=now, written_to=done)
     save(d, cfg)
+    if any(w["transport"] == "relay" for w in done):
+        notes += _relay_send(cfg)
     return {"rev": rev, "name": d.get("name"), "stops": len(d["stops"]), "written": done, "notes": notes}
+
+
+def _relay_send(cfg):
+    """Relay mode: encrypt and upload now (the running `relay sync` would do it within ~25 s anyway)."""
+    try:
+        from . import relay
+        relay.push_down(cfg)
+        return []
+    except Exception as e:  # relay down or not paired: `relay sync` retries
+        return ["not uploaded to the relay yet (%s); `foreverscribe relay sync` sends it when it can" % e]
 
 
 def pickup(cfg=None):
@@ -267,6 +281,8 @@ def how_to_play(res):
             lines.append("  game folder: %d route slots in %s" % (w["slots"], w["path"]))
         elif w["transport"] == "folder":
             lines.append("  synced folder: %s (the game computer's sync agent copies it in once it syncs)" % w["path"])
+        elif w["transport"] == "relay":
+            lines.append("  relay: encrypted and uploaded (the game computer's sync agent picks it up within ~30 s)")
         else:
             lines.append("  receiver: %s (the game computer's sync agent fetches it within ~30 s)" % w["path"])
     for n in res.get("notes") or []:
@@ -294,8 +310,8 @@ def render_status(s):
     if p.get("rev"):
         lines.append("game computer fetched rev %s at %s%s" % (p["rev"], time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p["at"])),
                                                               "" if p["rev"] == s["rev"] else " (an older route; not this one yet)"))
-    elif any(w["transport"] == "http" for w in s.get("written_to") or []):
-        lines.append("game computer has not fetched a route from the receiver yet (is its 0.5 sync agent installed?)")
+    elif any(w["transport"] in ("http", "relay") for w in s.get("written_to") or []):
+        lines.append("game computer has not fetched a route yet (is its sync agent installed and running?)")
     g = s.get("in_game") or {}
     if g.get("rev"):
         lines.append("in game (as of the last /reload): %s %s, rev %s" % (

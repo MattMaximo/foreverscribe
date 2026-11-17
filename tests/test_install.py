@@ -211,6 +211,11 @@ class WindowsInstaller(unittest.TestCase):
             code = re.sub(r"'[^']*'", "''", code)
             for o, c in ("{}", "()", "[]"):
                 self.assertEqual(code.count(o), code.count(c), "%s: unbalanced %s%s" % (os.path.basename(s), o, c))
+            # "$name: text" inside a string is a parse error in PowerShell (a scope/drive reference); write "${name}:".
+            # This broke the 0.3-0.8 Windows sync agent while the pwsh parse test above was skipped.
+            for n, line in enumerate(src.splitlines(), 1):
+                m = re.search(r'\$(?!(?:env|script|global|local|private|using):)[A-Za-z_]\w*:(?=[\s"\'/\\.,;)])', line)
+                self.assertIsNone(m, "%s:%d: %s (use ${...})" % (os.path.basename(s), n, line.strip()))
             self.assertNotIn("Invoke-Expression", src)
             self.assertNotIn("-Verb RunAs", src, "never asks for admin")
         with open(self.SCRIPTS[0], encoding="utf-8") as fh:

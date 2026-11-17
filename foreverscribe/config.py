@@ -32,6 +32,7 @@ DEFAULTS = {
     "transport": {"mode": "local", "folder": ""},
     "receiver": {"bind": "127.0.0.1", "port": 8766, "public_url": "", "allow_ips": [], "legacy_unsigned_ips": [],
                  "keys_file": "", "max_skew_seconds": 600},
+    "relay": {"url": "", "create_secret": ""},
     "pull": {"ssh_host": "", "ssh_command": "ssh -o BatchMode=yes -o ConnectTimeout=8", "remote_account_dir": ""},
     "sync": {"extra_saved_variables": ["ForeverForge*.lua", "Polestar.lua"]},
     "ah": {"enabled": False, "wowgg_key": "", "market": "", "cut": ""},

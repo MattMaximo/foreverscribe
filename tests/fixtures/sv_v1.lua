@@ -1,6 +1,6 @@
 
 ForeverScribeDB = {
-	["addonVersion"] = "0.8.4",
+	["addonVersion"] = "0.9.0",
 	["chars"] = {
 		["Forever-Test:Pixelpop"] = {
 			["achievements"] = {
@@ -174,7 +174,7 @@ ForeverScribeDB = {
 					["payload"] = {
 						["level"] = 23,
 						["money"] = 123456,
-						["version"] = "0.8.4",
+						["version"] = "0.9.0",
 						["zone"] = "Loch Modan",
 					},
 					["schema"] = 1,
@@ -487,7 +487,7 @@ ForeverScribeDB = {
 				}, -- [1]
 			},
 			["snapshot"] = {
-				["addonVersion"] = "0.8.4",
+				["addonVersion"] = "0.9.0",
 				["bags"] = {
 					["free"] = 25,
 					["items"] = {

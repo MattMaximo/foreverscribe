@@ -7,8 +7,8 @@ reputation, talents, mail, auctions, vendors you visit, where you actually met e
 normal SavedVariables file.
 A **companion** (Python 3.8+, standard library only) turns that file into answers for any agent:
 a CLI (`foreverscribe summary`) and an **MCP server** (`foreverscribe mcp`) for Claude Desktop, Claude Code,
-Codex, Hermes, or anything else that speaks MCP. No hosted service, no account, nothing leaves your machines
-unless you set up a transport between your own computers.
+Codex, Hermes, or anything else that speaks MCP. No account, and nothing leaves your machines unless you set up a
+transport between your own computers. The optional hosted relay (0.9) only ever holds end-to-end encrypted files.
 
 > **Agents:** follow [`SETUP-FOR-AGENTS.md`](SETUP-FOR-AGENTS.md). It is a step-by-step setup script you can run for your user.
 
@@ -21,17 +21,18 @@ unless you set up a transport between your own computers.
  │  └ ForeverScribe addon       │   transport    │  └ SQLite store in your data dir       │
  │     writes SavedVariables on │ ─────────────▶ │                                       │
  │     /reload, logout, exit    │ local | folder │ your agent: Claude / Codex / Hermes … │
- │  └ sync agent (optional)     │ | http         │                                       │
+ │  └ sync agent (optional)     │ | http | relay │                                       │
  └──────────────────────────────┘                └───────────────────────────────────────┘
 ```
 
-Three ways to run it (all first-class, pick in `config.toml`):
+Four ways to run it (all first-class, pick in `config.toml`):
 
 | Mode | When | What you install |
 |---|---|---|
 | `local` | WoW and your agent on the **same computer** | the addon; the companion reads `WTF/Account/*/SavedVariables` directly |
 | `folder` | different computers, **no networking**: iCloud Drive, Dropbox, OneDrive, Google Drive, Syncthing | addon + game-side sync agent that copies into the synced folder |
 | `http` | different computers on any route you control: LAN, Tailscale/WireGuard, or your own tunnel (e.g. Cloudflare Tunnel) | addon + sync agent that pushes each save, signed with a per-install **pairing key** |
+| `relay` | different computers on **different networks**, nothing to open: both connect out to a small hosted relay ([`docs/RELAY.md`](docs/RELAY.md), ~$5/month on DigitalOcean) | addon + sync agent that uploads each save **end-to-end encrypted**; `foreverscribe relay sync` on the agent side |
 
 Details and trade-offs: [`docs/TRANSPORTS.md`](docs/TRANSPORTS.md).
 
@@ -50,11 +51,13 @@ Game side: unzip the kit for your OS from `dist/` (build with `tools/build_dist.
 ```sh
 ./install.sh --addon-only                    # macOS, same computer
 ./install.sh --pair fs1.…                    # macOS, push to the agent computer (code from `foreverscribe pair`)
+./install.sh --pair fs2.…                    # macOS, through a hosted relay (code from `foreverscribe relay pair`)
 ./install.sh --folder ~/Dropbox/ForeverScribe   # macOS, synced folder
 ```
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -AddonOnly        # Windows, same PC
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -Pair fs1.…       # Windows, push
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Pair fs2.…       # Windows, through a relay
 ```
 
 Restart WoW, enable **ForeverScribe** at character select, log in, `/reload`. Then:
@@ -175,8 +178,9 @@ data/             npc-locations.json: shared NPC sightings (contributions by pul
 foreverscribe/    Python package: store, queries, CLI, MCP server, receiver, auth, config, wowhead, waypoints, npcs, routes, ah, prices, live capture
 bin/              foreverscribe (POSIX) and foreverscribe.cmd (Windows) launchers
 installers/       macos/ (install.sh, uninstall.sh, sync agent)  windows/ (install.ps1, sync agent)
+relay/            the optional hosted relay (FastAPI; Dockerfile at the root, .do/app.yaml for DigitalOcean)
 skills/           agent instructions: generic + Hermes skill source
-docs/             transports, agent setup, game-PC guide, capture matrix, development
+docs/             transports, relay, agent setup, game-PC guide, capture matrix, development
 tests/            Lua addon tests (simulated client) + Python tests
 tools/            build_dist.sh, pii_check.py, API checkers, get_lua.sh
 ```

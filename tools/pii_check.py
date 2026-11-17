@@ -32,7 +32,7 @@ PATTERNS = [
     ("48-char key", re.compile(r"\b(?=[0-9a-z]*\d)(?=[0-9a-z]*[a-z])[0-9a-z]{48}\b")),
     ("e-mail", re.compile(r"\b[A-Za-z0-9._%+-]+@(?!example\.(?:com|org))[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")),
 ]
-SKIP_DIRS = {".git", "dist", "data", "research", "__pycache__", "lua", "src"}
+SKIP_DIRS = {".git", "dist", "data", "research", "__pycache__", "lua", "src", ".venv"}
 SKIP_SUFFIX = (".zip", ".png", ".db", ".pyc")
 
 

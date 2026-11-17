@@ -4,7 +4,8 @@ About 15 minutes. You need WoW: Forever and an AI agent (Claude Desktop/Code, Co
 
 ## Setup
 1. Give your agent this repo URL and say: "Set up ForeverScribe for me by following SETUP-FOR-AGENTS.md."
-   Pick a mode when it asks: same computer (simplest), synced folder, or direct push.
+   Pick a mode when it asks: same computer (simplest), synced folder, direct push, or a relay (computers on different
+   networks; your agent will ask for the relay URL and invite code).
 2. Fully quit and relaunch WoW. At character select → AddOns, tick **ForeverScribe** (leave ForeverScribe Live off).
 3. Log in, type `/scribe status` (should show the version and `errors 0`), then `/reload`.
 
@@ -25,6 +26,11 @@ About 15 minutes. You need WoW: Forever and an AI agent (Claude Desktop/Code, Co
 - [ ] 0.5 routes, second route in the same session: ask for a new route and press `/fs go` again (no `/reload`):
       it should show the new route. (After a `/reload` your place on the current route should come back.)
 
+- [ ] 0.9 relay (game and agent computers on different networks): after `/reload`, your agent sees the new state
+      within a few seconds (`foreverscribe relay status` says when the game computer last connected). Ask for a
+      route: it should arrive in game within about 30 s (`/fs go`). Turn the agent computer off for a while, play,
+      `/reload`, turn it back on: everything should still arrive.
+
 ## Ask your agent
 - "What level am I, where am I, and how fresh is your data?"
 - "What changed in the last hour?" (should list your loot, quest, skill-up, zone)
@@ -38,3 +44,4 @@ About 15 minutes. You need WoW: Forever and an AI agent (Claude Desktop/Code, Co
 - Anything wrong or missing in the answers above.
 - Whether your other addons still work normally.
 - 0.5: did `/fs go` pick up a route written while the game was running, and how long did it take to arrive?
+- 0.9 relay: how long from `/reload` to your agent seeing it, and any "relay refused" lines in the game-side `sync.log`.

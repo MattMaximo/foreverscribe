@@ -1,7 +1,8 @@
 """Setup and transport commands: setup, pair, receiver, doctor, config.
 
-  foreverscribe setup [--mode local|folder|http] [--wow-dir DIR] [--folder DIR] [--bind IP] [--port N]
-                      [--public-url URL] [--data-dir DIR] [--character NAME] [--market M] [--force]
+  foreverscribe setup [--mode local|folder|http|relay] [--wow-dir DIR] [--folder DIR] [--bind IP] [--port N]
+                      [--public-url URL] [--relay-url URL] [--relay-secret S] [--data-dir DIR] [--character NAME]
+                      [--market M] [--force]
   foreverscribe pair [--name NAME] [--url URL] [--list] [--revoke ID]
   foreverscribe receiver [run | health | launchagent [--write] [--label L]]
   foreverscribe doctor
@@ -28,8 +29,11 @@ def _p(*a):
 # ---------------------------------------------------------------- setup
 def cmd_setup(argv):
     ap = argparse.ArgumentParser(prog="foreverscribe setup", description="write config.toml for this computer (agent side)")
-    ap.add_argument("--mode", choices=["local", "folder", "http"], help="local: WoW on this computer; folder: a synced "
-                    "folder brings the files; http: the game computer pushes to this computer's receiver")
+    ap.add_argument("--mode", choices=["local", "folder", "http", "relay"], help="local: WoW on this computer; folder: a "
+                    "synced folder brings the files; http: the game computer pushes to this computer's receiver; relay: "
+                    "both computers connect out to a hosted relay (different networks, nothing to open)")
+    ap.add_argument("--relay-url", help="the hosted relay's https URL (mode relay)")
+    ap.add_argument("--relay-secret", help="the relay's create secret, if it has one (mode relay)")
     ap.add_argument("--wow-dir", help="the _forever_ folder (mode local)")
     ap.add_argument("--account", action="append", help="limit to these WTF/Account folder names")
     ap.add_argument("--folder", help="synced folder the game computer copies into (mode folder)")
@@ -72,6 +76,12 @@ def cmd_setup(argv):
         d["receiver"]["bind"] = a.bind or "127.0.0.1"
         d["receiver"]["port"] = a.port or 8766
         d["receiver"]["public_url"] = a.public_url or ""
+    if mode == "relay":
+        if not a.relay_url:
+            _p("mode relay needs --relay-url https://<your relay> (docs/RELAY.md)")
+            return 2
+        d["relay"]["url"] = a.relay_url.rstrip("/")
+        d["relay"]["create_secret"] = a.relay_secret or ""
     if a.market:
         d["ah"]["market"] = a.market
     header = ("# ForeverScribe config (written by `foreverscribe setup` %s). Not part of the repository.\n"
@@ -83,6 +93,9 @@ def cmd_setup(argv):
     _p("Wrote %s (mode %s)." % (path, mode))
     if mode == "http":
         _p("Next: start the receiver (`foreverscribe receiver`), then `foreverscribe pair` for the game computer.")
+    elif mode == "relay":
+        _p("Next: `foreverscribe relay pair` (prints the code for the game computer), then keep "
+           "`foreverscribe relay sync` running (`foreverscribe relay launchagent --write` on a Mac).")
     elif mode == "folder":
         _p("Next: install the game-side kit with --folder pointing at the same synced folder on that computer.")
     else:
@@ -250,6 +263,11 @@ def cmd_doctor(argv):
         ok &= rc == 0
         if not keys and not r.get("legacy_unsigned_ips"):
             _p("No pairing keys: run `foreverscribe pair` for the game computer.")
+    if mode == "relay":
+        from . import relay
+        s = relay.status(cfg)
+        _p(relay.render_status(s))
+        ok &= bool(s.get("health")) and s["paired"] and not s.get("channel_error")
     a = cfg.section("ah")
     _p("AH prices: %s" % ("on (%s)" % a.get("market") if a.get("enabled") and a.get("wowgg_key") else "off (see config.example.toml [ah])"))
     _p("OK" if ok else "Some checks need attention (above).")
@@ -267,6 +285,10 @@ def cmd_config(argv):
     if a.get("wowgg_key"):
         a["wowgg_key"] = "<set>"
     shown["ah"] = a
+    rl = dict(shown.get("relay") or {})
+    if rl.get("create_secret"):
+        rl["create_secret"] = "<set>"
+    shown["relay"] = rl
     shown["resolved"] = {"config": cfg["_path"], "exists": cfg["_exists"], "data_dir": cfg.data_dir, "db": cfg.db,
                          "sources": cfg.sources, "wow_dir": C.wow_dir(cfg)}
     print(json.dumps(shown, indent=2))

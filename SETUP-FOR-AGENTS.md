@@ -7,7 +7,13 @@ route file `route write` puts into the ForeverScribe route slots (loaded only wh
 ## 0. What you need
 
 - Python 3.8+ on the agent computer (`python3 --version`; Windows: `py -3 --version`). Standard library only.
-- Where WoW runs. **ASK**: "Does World of Warcraft: Forever run on this computer, or on a different one?"
+- Where WoW runs. **ASK**: "Does World of Warcraft: Forever run on this computer, on another computer on the same
+  home network, or on a computer somewhere else (a friend's house, a different network)?"
+  - this computer → mode A (`local`)
+  - same network → mode C (`http`) with the LAN address (step by step: `docs/SETUP-LAN.md`), or B if they already
+    share a synced folder
+  - somewhere else → mode D (`relay`) if they have a relay URL (theirs or a friend's); otherwise B (synced folder)
+    or C over Tailscale
 
 ## 1. Get the code (agent computer)
 
@@ -44,21 +50,32 @@ FS receiver                       # keep it running (macOS autostart: FS receive
 FS pair --name "<game PC name>"   # prints a one-line pairing code: a secret, give it only to the user
 ```
 
+**D. Different computers, different networks (`relay`)** — nothing to open or install on the network. Needs the URL
+of a ForeverScribe relay (`https://….ondigitalocean.app`) and, if it has one, its invite code (`RELAY_CREATE_SECRET`).
+**ASK** for both; whoever hosts the relay has them. No relay yet? Point the user to `docs/RELAY.md` (about 10 minutes
+in DigitalOcean, ~$5/month); never create cloud accounts or spend money for them.
+```sh
+FS setup --mode relay --relay-url https://<relay> [--relay-secret <invite code>]
+FS relay pair --name "<game PC name>"   # prints the fs2 code: a secret, give it only to the user
+FS relay launchagent --write            # macOS: keep `relay sync` running (then launchctl bootstrap …, as it prints)
+FS relay task                           # Windows: prints the Scheduled Task lines to run once
+```
+
 Optional: `--character "<Name>"` (default character), `--market forever.<normal|pvp|hardcore>.<alliance|horde>.<us|eu>`.
 AH prices stay off unless the user opts in (`config.example.toml` → `[ah]` explains why). If they do, run
 `FS prices write` once: item tooltips in game then show AH prices after the next login or `/reload` (http: the
 receiver keeps them fresh while the game computer's sync agent runs; local: run `FS prices watch` or schedule
 `FS prices write` every 30 min). Details: `docs/PRICES.md`.
 
-## 3. Install on the game computer (modes B and C)
+## 3. Install on the game computer (modes B, C and D)
 
 Build or download the kit (`tools/build_dist.sh` → `dist/ForeverScribe-<ver>-macos.zip` / `-windows.zip`) and give
 the user the matching zip plus this one line:
 
-| Game computer | Mode B (folder) | Mode C (http) |
+| Game computer | Mode B (folder) | Mode C (http) / D (relay) |
 |---|---|---|
-| macOS | `./install.sh --folder "<synced folder there>"` | `./install.sh --pair <code>` |
-| Windows | `.\install.ps1 -Folder "<synced folder there>"` | `.\install.ps1 -Pair <code>` |
+| macOS | `./install.sh --folder "<synced folder there>"` | `./install.sh --pair <fs1. or fs2. code>` |
+| Windows | `.\install.ps1 -Folder "<synced folder there>"` | `.\install.ps1 -Pair <fs1. or fs2. code>` |
 
 Windows: run from PowerShell with `powershell -ExecutionPolicy Bypass -File .\install.ps1 …`. Add `-DryRun`/`--dry-run`
 to preview. Uninstall: `./uninstall.sh` or `.\install.ps1 -Uninstall`. Optional: `--remind 30` / `-Remind 30`.
@@ -73,7 +90,8 @@ FS doctor      # every check OK?
 FS summary     # should show their character
 ```
 
-No character yet? `FS doctor` lists the folders it reads. Mode C: check `FS receiver health` and the game-side log
+No character yet? `FS doctor` lists the folders it reads. Mode C: check `FS receiver health`; mode D: `FS relay
+status` (when did the game computer last connect?) and that `FS relay sync` is running. Then the game-side log
 (`~/Library/Application Support/ForeverScribe/sync.log` or `%LOCALAPPDATA%\ForeverScribe\sync.log`).
 
 ## 5. Connect yourself (MCP)
@@ -125,5 +143,6 @@ Verify by calling the `summary` tool. No MCP support? Use the CLI directly; ever
 - Read-only. Don't edit the addon to add automation, chat, network or protected calls; don't call `ReloadUI`.
 - The only writes towards the game are `route write` and `prices write`. Never hand-edit the route slot or price
   files: the sync agent rejects anything that isn't exactly what the companion writes.
-- The pairing code and `receiver-keys.json` are secrets. Don't post them anywhere.
+- The pairing codes (`fs1.`, `fs2.`), `receiver-keys.json` and `<data dir>/relay/relay.json` are secrets. Don't post
+  them anywhere. A leaked fs2 code: `FS relay unpair`, `FS relay pair`, re-install the game side.
 - Don't commit the user's `config.toml`, data dir, SavedVariables or logs to any repository.

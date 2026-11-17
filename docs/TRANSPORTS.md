@@ -64,24 +64,25 @@ Both `--pair` and `--folder` can be set: the push is fast, the folder is a fallb
 `foreverscribe pull` copies ForeverScribe.lua from `[pull] ssh_host` with `tar` over SSH. Useful for a one-off fetch;
 not needed when a transport runs.
 
-## Future: hosted relay (not built)
+## `relay` — a hosted, end-to-end encrypted mailbox (0.9)
 
-For players with no shared folder, LAN or tunnel, a small hosted **end-to-end encrypted mailbox** would work:
+For computers on different networks with no shared folder, LAN or tunnel. Both sides connect out to one small relay
+(`relay/`, deployable to DigitalOcean App Platform for about $5 a month) over HTTPS. `foreverscribe relay pair`
+makes a channel and prints an `fs2.` code with the relay URL, the channel id, the game side's upload token and a
+256-bit key that never reaches the relay. The sync agent gzips, encrypts (AES-256-CBC + HMAC-SHA256,
+encrypt-then-MAC) and uploads each save; `foreverscribe relay sync` on the agent computer long-polls, downloads,
+checks, decrypts and ingests within a second or two. Routes and AH prices go back the same way (the sync agent
+checks for them on every run). Failed uploads wait in the spool like `http` pushes.
 
-- `pair` would generate an X25519 key pair on the agent side; the code carries the public key and a mailbox id.
-- The sync agent encrypts each file (e.g. libsodium sealed box) and uploads the ciphertext to the relay mailbox.
-- The agent side polls (or holds a long-poll / WebSocket) and decrypts locally; the relay sees only opaque blobs,
-  sizes and timing, and deletes after delivery or a short TTL.
-
-It needs hosting, abuse limits and a crypto dependency (or a careful stdlib-only design), so it is deliberately left
-out of 0.3.
+Setup, security model, limits and the deploy steps: [`RELAY.md`](RELAY.md).
 
 ## The other direction: AH prices (0.6)
 
 `foreverscribe prices write` sends the AH price file the same ways (details: [`PRICES.md`](PRICES.md)): `local`
 writes `Interface/AddOns/ForeverScribe_Prices/Prices.lua`; `folder` writes `<folder>/_prices/Prices.lua` (launchd
 watches `_prices`); `http`: the sync agent asks `POST /v1/prices` (signed, `X-FS-Have`) at most every 5 minutes and
-each ask refreshes the receiver's copy in the background once it is older than 30 minutes.
+each ask refreshes the receiver's copy in the background once it is older than 30 minutes; `relay`: the encrypted
+file is uploaded at once, and `relay sync` refreshes it the same way while the game computer is connecting.
 
 ## The other direction: routes (0.5)
 
@@ -94,5 +95,7 @@ each ask refreshes the receiver's copy in the background once it is older than 3
 - `http`: the receiver keeps it; the game-side sync agent polls `POST /v1/route` (macOS every 30 s, Windows every 10 s),
   signed with its pairing key (legacy unsigned agents get nothing), with `X-FS-Have: <rev>` so an unchanged route is a
   `304`. The receiver records the fetch for `route status`.
+- `relay`: `route write` encrypts and uploads it at once; the sync agent fetches it on its next run (macOS every
+  30 s, Windows every 10 s) and `route status` shows when it did.
 
 Both sync agents validate the file line by line before copying it into the WoW folder.

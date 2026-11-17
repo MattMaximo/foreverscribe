@@ -3,6 +3,7 @@
 #
 #   ./install.sh --addon-only                 same computer as your agent: just the addon
 #   ./install.sh --pair fs1.xxxx              agent on another computer: push over HTTP (code from `foreverscribe pair`)
+#   ./install.sh --pair fs2.xxxx              agent anywhere: through a hosted relay (code from `foreverscribe relay pair`)
 #   ./install.sh --folder "<synced folder>"   agent on another computer: copy into iCloud Drive/Dropbox/OneDrive/...
 #   (--pair and --folder can be combined: push first, the folder is a backup)
 # Options: --wow-dir DIR   --remind MINUTES (save reminder, 0 = off)   --extra "ForeverForge*.lua Polestar.lua ..."
@@ -50,21 +51,26 @@ for d in $ADDON_DIRS; do
 done
 case "$REMIND" in ''|*[!0-9]*) [ -n "$REMIND" ] && { say "--remind takes whole minutes"; exit 2; } ;; esac
 
-PUSH_URL=""; KEY_ID=""; KEY=""
+PUSH_URL=""; KEY_ID=""; KEY=""; RELAY_URL=""; RELAY_CH=""; RELAY_TOKEN=""
 if [ -n "$PAIR" ]; then
-	case "$PAIR" in fs1.*) ;; *) say "That isn't a ForeverScribe pairing code (it starts with fs1.)"; exit 2 ;; esac
-	b="${PAIR#fs1.}"; b="$(printf '%s' "$b" | tr '_-' '/+')"
+	case "$PAIR" in fs1.*|fs2.*) ;; *) say "That isn't a ForeverScribe pairing code (it starts with fs1. or fs2.)"; exit 2 ;; esac
+	b="${PAIR#fs[12].}"; b="$(printf '%s' "$b" | tr '_-' '/+')"
 	while [ $(( ${#b} % 4 )) -ne 0 ]; do b="$b="; done
 	json="$(printf '%s' "$b" | base64 -D 2>/dev/null || printf '%s' "$b" | base64 -d 2>/dev/null)" || true
-	PUSH_URL="$(printf '%s' "$json" | sed -n 's/.*"u":"\([^"]*\)".*/\1/p')"
-	KEY_ID="$(printf '%s' "$json" | sed -n 's/.*"i":"\([^"]*\)".*/\1/p')"
-	KEY="$(printf '%s' "$json" | sed -n 's/.*"k":"\([^"]*\)".*/\1/p')"
-	[ -n "$PUSH_URL" ] && [ -n "$KEY_ID" ] && [ -n "$KEY" ] || { say "Pairing code is damaged; copy it again."; exit 2; }
+	field() { printf '%s' "$json" | sed -n 's/.*"'"$1"'":"\([^"]*\)".*/\1/p'; }
+	KEY="$(field k)"
+	case "$PAIR" in
+		fs1.*) PUSH_URL="$(field u)"; KEY_ID="$(field i)"
+			[ -n "$PUSH_URL" ] && [ -n "$KEY_ID" ] && [ -n "$KEY" ] || { say "Pairing code is damaged; copy it again."; exit 2; } ;;
+		fs2.*) RELAY_URL="$(field u)"; RELAY_CH="$(field c)"; RELAY_TOKEN="$(field t)"; RELAY_URL="${RELAY_URL%/}"
+			[ -n "$RELAY_URL" ] && [ -n "$RELAY_TOKEN" ] && [ -n "$KEY" ] && printf '%s' "$RELAY_CH" | grep -Eq '^[0-9a-f]{32}$' ||
+				{ say "Pairing code is damaged; copy it again."; exit 2; } ;;
+	esac
 fi
-if [ $ADDON_ONLY -eq 0 ] && [ -z "$PUSH_URL" ] && [ -z "$FOLDER" ]; then
+if [ $ADDON_ONLY -eq 0 ] && [ -z "$PUSH_URL" ] && [ -z "$RELAY_URL" ] && [ -z "$FOLDER" ]; then
 	say "Choose how the files reach your agent:"
 	say "  same computer:      ./install.sh --addon-only"
-	say "  another computer:   ./install.sh --pair <code from 'foreverscribe pair'>   and/or   --folder <synced folder>"
+	say "  another computer:   ./install.sh --pair <code from 'foreverscribe pair' or 'foreverscribe relay pair'>   and/or   --folder <synced folder>"
 	exit 2
 fi
 if pgrep -xq "World of Warcraft" 2>/dev/null; then
@@ -74,7 +80,7 @@ fi
 TS="$(date +%Y%m%d-%H%M%S)"
 run mkdir -p "$SUPPORT"
 MANIFEST="$SUPPORT/install-manifest.txt"
-[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.8.2"; } > "$MANIFEST.new"
+[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.9.0"; } > "$MANIFEST.new"
 
 say "1) Addon -> $ADDONS"
 for d in $ADDON_DIRS; do
@@ -131,13 +137,19 @@ if [ $DRY -eq 0 ]; then
 		printf 'WOW_DIR=%q\n' "$WOW_DIR"
 		printf 'PUSH_URL=%q\n' "$PUSH_URL"
 		printf 'KEY_ID=%q\n' "$KEY_ID"
+		printf 'RELAY_URL=%q\n' "$RELAY_URL"
+		printf 'RELAY_CH=%q\n' "$RELAY_CH"
 		printf 'FOLDER_DEST=%q\n' "$FOLDER"
 		printf 'EXTRA_SV=%q\n' "$EXTRA"
 	} > "$SUPPORT/game.conf"
-	if [ -n "$KEY" ]; then printf '%s' "$KEY" > "$SUPPORT/pairing.key"; chmod 600 "$SUPPORT/pairing.key"; fi
+	if [ -n "$KEY_ID" ]; then printf '%s' "$KEY" > "$SUPPORT/pairing.key"; chmod 600 "$SUPPORT/pairing.key"; fi
+	if [ -n "$RELAY_URL" ]; then
+		printf '%s\n%s\n' "$RELAY_TOKEN" "$KEY" > "$SUPPORT/relay.key"; chmod 600 "$SUPPORT/relay.key"
+		rm -rf "$SUPPORT/relay-got"   # a new channel starts from zero
+	fi
 	umask 022
 else
-	say "  [dry-run] write $SUPPORT/game.conf (push ${PUSH_URL:-off}, folder ${FOLDER:-off})"
+	say "  [dry-run] write $SUPPORT/game.conf (push ${PUSH_URL:-off}, relay ${RELAY_URL:-off}, folder ${FOLDER:-off})"
 fi
 [ -n "$FOLDER" ] && run mkdir -p "$FOLDER"
 run mkdir -p "$AGENTS"
@@ -200,6 +212,17 @@ if [ -n "$PUSH_URL" ] && [ $DRY -eq 0 ]; then
 		200) say "   receiver OK, pairing key accepted" ;;
 		403) say "   receiver reachable but it refused the key: run 'foreverscribe pair' again and re-install with the new code" ;;
 		*) say "   receiver not reachable right now ($code). Files will wait in the spool and go out once it is." ;;
+	esac
+fi
+
+if [ -n "$RELAY_URL" ] && [ $DRY -eq 0 ]; then
+	say "3) Checking the relay at $RELAY_URL"
+	code=$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 6 --max-time 15 -H "Authorization: Bearer $RELAY_TOKEN" \
+		"$RELAY_URL/v1/ch/$RELAY_CH/events?since=0" 2>/dev/null || true)
+	case "$code" in
+		200) say "   relay OK, channel found (files are encrypted on this computer before they leave it)" ;;
+		403|404) say "   relay reachable but it doesn't know this channel: run 'foreverscribe relay pair --force' on your agent computer and re-install with the new code" ;;
+		*) say "   relay not reachable right now ($code). Files wait in the spool and go out once it is." ;;
 	esac
 fi
 

@@ -1,0 +1,4 @@
+# the relay image needs only relay/requirements.txt and relay/app.py
+*
+!relay/requirements.txt
+!relay/app.py
