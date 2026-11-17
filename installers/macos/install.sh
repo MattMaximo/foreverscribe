@@ -82,6 +82,10 @@ run mkdir -p "$SUPPORT"
 MANIFEST="$SUPPORT/install-manifest.txt"
 [ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.9.0"; } > "$MANIFEST.new"
 
+# A new pairing (other receiver, relay channel or transport) must get every file once, even ones unchanged since
+# they were delivered somewhere else: forget what was "already pushed".
+if [ -n "$PAIR" ] && [ -d "$SUPPORT/pushed" ]; then run rm -rf "$SUPPORT/pushed"; say "   new pairing: every file is sent once again"; fi
+
 say "1) Addon -> $ADDONS"
 for d in $ADDON_DIRS; do
 	if [ -e "$ADDONS/$d" ]; then

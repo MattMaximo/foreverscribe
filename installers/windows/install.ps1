@@ -95,6 +95,12 @@ if (Test-Path $Manifest) {
 }
 Do-It "create $Support" { New-Item -ItemType Directory -Force -Path $Support | Out-Null }
 
+# A new pairing must get every file once, even ones unchanged since they were delivered elsewhere.
+if ($Pair -and (Test-Path (Join-Path $Support "pushed"))) {
+    if (-not $DryRun) { Remove-Item -Recurse -Force (Join-Path $Support "pushed") }
+    Say "   new pairing: every file is sent once again"
+}
+
 Say "1) Addon -> $addons"
 foreach ($d in $AddonDirs) {
     $target = Join-Path $addons $d
