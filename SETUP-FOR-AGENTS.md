@@ -4,16 +4,29 @@ You are an AI agent (Claude, Codex, ChatGPT, Hermes, …) helping a WoW: Forever
 order. Ask the user only where marked **ASK**. Everything here is read-only towards the game, except the data-only
 route file `route write` puts into the ForeverScribe route slots (loaded only when the player presses `/fs go`).
 
-## 0. What you need
+## 0. What you need, and which setup
 
 - Python 3.8+ on the agent computer (`python3 --version`; Windows: `py -3 --version`). Standard library only.
-- Where WoW runs. **ASK**: "Does World of Warcraft: Forever run on this computer, on another computer on the same
-  home network, or on a computer somewhere else (a friend's house, a different network)?"
-  - this computer → mode A (`local`)
-  - same network → mode C (`http`) with the LAN address (step by step: `docs/SETUP-LAN.md`), or B if they already
-    share a synced folder
-  - somewhere else → mode D (`relay`) if they have a relay URL (theirs or a friend's); otherwise B (synced folder)
-    or C over Tailscale
+- Figure out the setup yourself before asking: if a `World of Warcraft/_forever_` folder exists on the computer you
+  run on (macOS `/Applications/World of Warcraft/_forever_`; Windows `C:\Program Files*\World of Warcraft\_forever_`
+  or `FS setup --mode local` finds it), WoW is local. Then **ASK** only what you can't detect, in one message:
+  1. "Does World of Warcraft: Forever run on this computer?" (skip if you found it here)
+  2. If not: "Is the game computer Windows or Mac?"
+  3. If not: "Do you have a relay URL and invite code (from whoever shared ForeverScribe with you)?"
+- Pick the mode from the answers:
+
+| Situation | Mode | Steps for the user on the game computer |
+|---|---|---|
+| WoW on this computer | **A `local`** | none (install the addon here) |
+| WoW elsewhere, user has a relay URL + invite | **D `relay`** (recommended: works on any network, nothing to configure) | unzip kit, one install line |
+| WoW elsewhere, same home network, no relay | **C `http`** on the LAN (`docs/SETUP-LAN.md`) | unzip kit, one install line; allow the firewall prompt here |
+| WoW elsewhere, they already share Dropbox/iCloud/OneDrive | **B `folder`** | unzip kit, one install line |
+
+  Prefer D over C even on the same network when a relay is available: no IPs, firewall prompts or address changes.
+
+**Community relay.** The repo owner runs one at `https://thousand-truths-j6isf.ondigitalocean.app` (check
+`/v1/health`). Creating a pairing on it needs an invite code; the user gets it privately from the owner. Never put an
+invite code in a file, issue or chat log other than the user's own config. Anyone can host their own: `docs/RELAY.md`.
 
 ## 1. Get the code (agent computer)
 
@@ -69,8 +82,9 @@ receiver keeps them fresh while the game computer's sync agent runs; local: run 
 
 ## 3. Install on the game computer (modes B, C and D)
 
-Build or download the kit (`tools/build_dist.sh` → `dist/ForeverScribe-<ver>-macos.zip` / `-windows.zip`) and give
-the user the matching zip plus this one line:
+Download the kit from the latest GitHub release (repo → Releases → latest: `ForeverScribe-<ver>-windows.zip` or
+`-macos.zip`; or build it with `tools/build_dist.sh`). Give the user the zip link and exactly one line to run inside the
+unzipped folder:
 
 | Game computer | Mode B (folder) | Mode C (http) / D (relay) |
 |---|---|---|
