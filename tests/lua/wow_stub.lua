@@ -541,9 +541,11 @@ W.ADDONS = setmetatable({}, { __index = function(t, name)
 end })
 function W.LoadAddonFiles(name)
 	for _, f in ipairs(W.ADDONS[name]) do
-		local chunk, err = loadfile(W.ROOT .. "addon/" .. name .. "/" .. f)
-		if not chunk then error(err) end
-		chunk()
+		if f:match("%.lua$") then -- XML templates (Options.xml) are only declarations; the tests build frames by hand
+			local chunk, err = loadfile(W.ROOT .. "addon/" .. name .. "/" .. f)
+			if not chunk then error(err) end
+			chunk()
+		end
 	end
 	W.addonsLoaded[name] = true
 end
@@ -649,6 +651,7 @@ do -- v0.3 additions live next to this file
 	dofile(here .. "wow_stub_npc.lua")
 	dofile(here .. "wow_stub_tip.lua")
 	dofile(here .. "wow_stub_craft.lua")
+	dofile(here .. "wow_stub_settings.lua")
 end
 
 return W

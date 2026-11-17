@@ -1,8 +1,9 @@
 ## Interface: 16001
-## Title: ForeverScribe prices
-## Notes: Auction-house prices for ForeverScribe's item tooltips. Data only: your agent rewrites Prices.lua (foreverscribe prices write); the game reads it at login and /reload.
+## Title: ForeverScribe · Prices (data)
+## Notes: Auction-house prices for ForeverScribe's item tooltips and craft profit. Data only: your agent rewrites Prices.lua and the game reads it at login and /reload. Leave it enabled.
 ## Author: ForeverScribe contributors
-## Version: 0.9.0
+## Version: 0.10.0
+## IconTexture: Interface\ICONS\INV_Scroll_04
 ## Group: ForeverScribe
 
 Prices.lua

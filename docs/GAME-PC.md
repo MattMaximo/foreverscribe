@@ -29,21 +29,28 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Pair fs1.xxxxxxxx     # 
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -Folder "$env:USERPROFILE\Dropbox\ForeverScribe"
 ```
 
-Options: `-WowDir "D:\World of Warcraft\_forever_"`, `-Remind 30`, `-DryRun`. Undo: `.\install.ps1 -Uninstall`.
+Options: `-WowDir "D:\World of Warcraft\_forever_"`, `-Remind 30`, `-Live` (optional pixel strip, see below), `-DryRun`.
+Undo: `.\install.ps1 -Uninstall`.
 The sync agent runs as a per-user scheduled task ("ForeverScribe Sync", at logon); no administrator rights.
 
 ## After installing
 
 1. Fully quit and restart WoW (needed once: new addon folders are only found at launch).
-2. At character select → AddOns, make sure **ForeverScribe** is enabled, including **ForeverScribe prices** and its
-   ten "route slot" entries grouped under it (leave ForeverScribe Live off).
+2. At character select → AddOns, make sure **ForeverScribe** (scroll icon) is enabled. Its dropdown holds
+   **ForeverScribe · Prices (data)** and **ForeverScribe · Route 1–3 (used by /fs go)**: data-only helpers, leave
+   them ticked.
 3. Log in, type `/scribe status`, then `/reload`. Your agent sees it within a minute.
 
-In-game commands (`/scribe` or `/fs`): `status | last [n] | snapshot | errors | remind <min>|off | played on|off | live on|off | way <x> <y> [zone] [title]` (map pin + arrow; `way clear`) | `npcs` (NPCs noted; `npcs target off`).
+Options (0.10): **Esc → Options → AddOns → ForeverScribe**, the minimap's addons button, or just `/scribe`. On/off for
+the AH prices in item tooltips (and "only while holding Shift"), craft cost & profit in the profession window, the
+/reload reminder (off/15/30/60 min), which waypoint arrow to use, NPC targeting notes and the login /played request,
+plus read-only status (version, last save, price age). Every switch is the same setting as its slash command.
+
+In-game commands (`/scribe` or `/fs`): `help | status | last [n] | snapshot | errors | remind <min>|off | played on|off | tooltip on|off|shift | craftprices on|off | way <x> <y> [zone] [title]` (map pin + arrow; `way clear`, `way addon auto|native`) | `npcs` (NPCs noted; `npcs target off`) | `live on|off` (only with the optional Live addon).
 
 Routes from your agent: `/fs go` loads the route it wrote (arrow to each stop, next stop on arrival), `/fs next`,
 `/fs back`, `/fs route` (list), `/fs route clear`. Bind `/fs go` and "next stop" under Esc > Options > Keybindings >
-AddOns > ForeverScribe. `/fs go` works 10 times per session; `/reload` resets that and keeps your place.
+AddOns > ForeverScribe. `/fs go` picks up a new route 3 times per session; `/reload` resets that and keeps your place.
 
 AH prices (0.6, when your agent has them on): item tooltips show an Auction House section (typical price, what your
 stack is worth; hold Shift for listings, trend, the other faction and sell-or-vendor). The sync agent brings fresh
@@ -51,8 +58,12 @@ prices every ~30 minutes; the game reads them at login or `/reload`. `/scribe to
 
 ## What it touches
 
-- `Interface/AddOns/ForeverScribe`, `ForeverScribe_Live`, `ForeverScribe_Prices` and `ForeverScribe_Route01`…`10` (an existing folder with
-  that name is backed up first and restored on uninstall).
+- `Interface/AddOns/ForeverScribe`, `ForeverScribe_Prices` and `ForeverScribe_Route01`…`03` (an existing folder with
+  that name is backed up first and restored on uninstall). 0.10 removes `ForeverScribe_Route04`…`10` and
+  `ForeverScribe_Live` that an older kit installed (only folders the installer put there).
+- `ForeverScribe_Live` (optional, macOS/Windows: `--live` / `-Live`): a tiny pixel strip of recent events in the screen
+  corner that `live_capture.py` reads off the screen between saves. Not installed by default; the kit keeps it in
+  `optional/`.
 - macOS: `~/Library/Application Support/ForeverScribe/` and `~/Library/LaunchAgents/io.foreverscribe.sync.plist`.
 - Windows: `%LOCALAPPDATA%\ForeverScribe\` and the "ForeverScribe Sync" scheduled task.
 - With an fs2 (relay) code, files are encrypted on this computer before they leave it; the relay only holds

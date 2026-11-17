@@ -10,7 +10,7 @@ local FS = ForeverScribe
 local U = FS.Util
 local Try, Call, Clean, Sanitize = U.Try, U.Call, U.Clean, U.Sanitize
 
-FS.VERSION = "0.9.0"
+FS.VERSION = "0.10.0"
 FS.SCHEMA = 1
 FS.EVENT_CAP = 4000
 FS.SESSION_CAP = 200
@@ -1870,7 +1870,7 @@ function FS.SetLive(on, quiet)
 			local loaded, reason = Try(load, "ForeverScribe_Live")
 			if not FS.Live then
 				db.settings.live = false
-				if not quiet then Print("live module not available (" .. tostring(reason or loaded) .. "). Is ForeverScribe_Live installed and enabled?") end
+				if not quiet then Print("live module not available (" .. tostring(reason or loaded) .. "). It is optional since 0.10: install it with install.sh --live (Windows: -Live), restart the game, then /scribe live on.") end
 				return false
 			end
 		end
@@ -1904,7 +1904,15 @@ local function describe(ev)
 	return ev.type .. " " .. table.concat(bits, " ")
 end
 
+local HELP = "/scribe (options) | help | status | last [n] | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title] | way addon auto|native | go | next | back | route [clear|slots] | npcs [target on|off] | tooltip on|off|shift | craftprices on|off | guide | live on|off"
+
+local SlashCommand
 function FS.Slash(msg)
+	SlashCommand(msg)
+	if FS.Options then FS.Options.Refresh() end -- an open options panel shows what the command changed
+end
+
+function SlashCommand(msg)
 	local raw = tostring(msg or ""):gsub("^%s+", "")
 	if raw:lower():match("^way%s") or raw:lower():match("^way$") then
 		if FS.Way then FS.Way.Command(raw:sub(4)) else Print("waypoints need Waypoint.lua (restart the game after updating)") end
@@ -1912,7 +1920,11 @@ function FS.Slash(msg)
 	end
 	msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
 	local cmd, arg = msg:match("^(%S*)%s*(.-)$")
-	if cmd == "" or cmd == "status" then
+	if cmd == "" and FS.Options and FS.Options.Open() then
+		return
+	elseif cmd == "help" or cmd == "?" then
+		Print(HELP)
+	elseif cmd == "" or cmd == "status" then
 		if not char then Print("not ready yet") return end
 		Print(string.format("v%s  %s  session %s  events %d (dropped %d)  snapshot %s  errors %d  live %s",
 			FS.VERSION, FS.charKey or "?", tostring(session), #char.events, char.dropped or 0,
@@ -1957,7 +1969,7 @@ function FS.Slash(msg)
 		db.settings.played = (arg ~= "off")
 		Print("/played request at login " .. (db.settings.played and "on" or "off"))
 	else
-		Print("/scribe status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title] | go | next | back | route [clear] | npcs | tooltip on|off|shift | craftprices on|off | guide")
+		Print(HELP)
 	end
 end
 

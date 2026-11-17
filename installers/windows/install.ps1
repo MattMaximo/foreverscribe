@@ -7,13 +7,15 @@ ForeverScribe game-side installer for Windows (the PC that plays WoW: Forever).
   .\install.ps1 -Folder "D:\Dropbox\ForeverScribe"   agent elsewhere: copy into a synced folder
   (-Pair and -Folder can be combined)
 Options: -WowDir DIR   -Remind MINUTES   -Extra "ForeverForge*.lua","Polestar.lua"   -DryRun   -Uninstall
+         -Live (also the optional ForeverScribe_Live pixel strip; -NoLive removes it)
 Run from PowerShell:  powershell -ExecutionPolicy Bypass -File .\install.ps1 -Pair fs1.xxxx
-Touches only: Interface\AddOns\ForeverScribe(_Live, _Prices, _Route01-10), %LOCALAPPDATA%\ForeverScribe\, the "ForeverScribe Sync"
+Touches only: Interface\AddOns\ForeverScribe(_Prices, _Route01-03, _Live with -Live), %LOCALAPPDATA%\ForeverScribe\, the "ForeverScribe Sync"
 scheduled task (at logon, your user, no admin). Undo with -Uninstall.
 #>
 param(
     [string]$Pair = "", [string]$Folder = "", [string]$WowDir = "", [int]$Remind = -1,
-    [string[]]$Extra = @("ForeverForge*.lua", "Polestar.lua"), [switch]$AddonOnly, [switch]$DryRun, [switch]$Uninstall
+    [string[]]$Extra = @("ForeverForge*.lua", "Polestar.lua"), [switch]$AddonOnly, [switch]$DryRun, [switch]$Uninstall,
+    [switch]$Live, [switch]$NoLive
 )
 $ErrorActionPreference = "Stop"
 # Windows PowerShell 5.1 may not offer TLS 1.2 by default; the hosted relay (https) needs it
@@ -23,7 +25,10 @@ $Kit = if (Test-Path (Join-Path $Here "addon")) { $Here } else { (Resolve-Path (
 $Support = Join-Path $env:LOCALAPPDATA "ForeverScribe"
 $TaskName = "ForeverScribe Sync"
 $Manifest = Join-Path $Support "install-manifest.json"
-$AddonDirs = @("ForeverScribe", "ForeverScribe_Live", "ForeverScribe_Prices") + (1..10 | ForEach-Object { "ForeverScribe_Route{0:D2}" -f $_ })
+$AddonDirs = @("ForeverScribe", "ForeverScribe_Prices") + (1..3 | ForEach-Object { "ForeverScribe_Route{0:D2}" -f $_ })
+# folders older kits installed that 0.10 no longer uses (removed again only when this installer put them there)
+$Retired = @(4..10 | ForEach-Object { "ForeverScribe_Route{0:D2}" -f $_ })
+$AllDirs = $AddonDirs + $Retired + @("ForeverScribe_Live")
 
 function Say([string]$m) { Write-Host $m }
 function Do-It([string]$what, [scriptblock]$action) { if ($DryRun) { Say "  [dry-run] $what" } else { & $action } }
@@ -45,7 +50,7 @@ if ($Uninstall) {
             Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
         }
     }
-    foreach ($d in $AddonDirs) {
+    foreach ($d in $AllDirs) {
         $target = Join-Path $wow "Interface\AddOns\$d"
         if ((Test-Path (Join-Path $Support "installed-$d")) -and (Test-Path $target)) { Do-It "remove $target" { Remove-Item $target -Recurse -Force } }
         if ($m -and $m."backup_$d" -and (Test-Path $m."backup_$d")) { Do-It "restore $d" { Move-Item $m."backup_$d" $target } }
@@ -58,8 +63,19 @@ if ($Uninstall) {
 $wow = Find-Wow
 $addons = Join-Path $wow "Interface\AddOns"
 if (-not (Test-Path $addons)) { Say "AddOns folder not found: $addons"; Say "Pass -WowDir '<...>\World of Warcraft\_forever_'."; exit 1 }
+# ForeverScribe_Live (screen-readable pixel strip) is opt-in: installed only with -Live, and kept on a reinstall only
+# when an earlier -Live asked for it. Kits carry it under optional\, a repo checkout under addon\.
+$prevMan = $null
+if (Test-Path $Manifest) { $prevMan = Get-Content $Manifest -Raw | ConvertFrom-Json }
+$WantLive = if ($Live) { $true } elseif ($NoLive) { $false } else { [bool]($prevMan -and $prevMan.live) }
+if ($WantLive) { $AddonDirs += "ForeverScribe_Live" } else { $Retired += "ForeverScribe_Live" }
+function Src-Of([string]$d) {
+    $a = Join-Path $Kit "addon\$d"
+    if (Test-Path (Join-Path $a "$d.toc")) { return $a }
+    return (Join-Path $Kit "optional\$d")
+}
 foreach ($d in $AddonDirs) {
-    if (-not (Test-Path (Join-Path $Kit "addon\$d\$d.toc"))) { Say "Kit is incomplete: missing addon\$d"; exit 1 }
+    if (-not (Test-Path (Join-Path (Src-Of $d) "$d.toc"))) { Say "Kit is incomplete: missing addon\$d"; exit 1 }
 }
 
 $pushUrl = ""; $keyId = ""; $key = ""; $relayUrl = ""; $relayCh = ""; $relayToken = ""
@@ -88,10 +104,9 @@ if (-not $AddonOnly -and -not $pushUrl -and -not $relayUrl -and -not $Folder) {
 if (Get-Process -Name "Wow*" -ErrorAction SilentlyContinue) { Say "Note: WoW is running. Fully quit and restart it to load new addons." }
 
 $ts = Get-Date -Format "yyyyMMdd-HHmmss"
-$man = [ordered]@{ installedAt = $ts; wowDir = $wow; version = "0.9.0" }
-if (Test-Path $Manifest) {
-    $old = Get-Content $Manifest -Raw | ConvertFrom-Json
-    foreach ($p in $old.PSObject.Properties) { if ($p.Name -like "backup_*") { $man[$p.Name] = $p.Value } }
+$man = [ordered]@{ installedAt = $ts; wowDir = $wow; version = "0.10.0"; live = $WantLive }
+if ($prevMan) {
+    foreach ($p in $prevMan.PSObject.Properties) { if ($p.Name -like "backup_*") { $man[$p.Name] = $p.Value } }
 }
 Do-It "create $Support" { New-Item -ItemType Directory -Force -Path $Support | Out-Null }
 
@@ -112,7 +127,16 @@ foreach ($d in $AddonDirs) {
             $man["backup_$d"] = $bk
         }
     }
-    Do-It "copy addon\$d -> $target" { Copy-Item (Join-Path $Kit "addon\$d") $target -Recurse -Force; New-Item -ItemType File -Force -Path (Join-Path $Support "installed-$d") | Out-Null }
+    $src = Src-Of $d
+    Do-It "copy addon\$d -> $target" { Copy-Item $src $target -Recurse -Force; New-Item -ItemType File -Force -Path (Join-Path $Support "installed-$d") | Out-Null }
+}
+foreach ($d in $Retired) {
+    $marker = Join-Path $Support "installed-$d"
+    if (Test-Path $marker) {
+        $target = Join-Path $addons $d
+        if (Test-Path $target) { Do-It "remove $target (not used by this version)" { Remove-Item $target -Recurse -Force }; Say "   removed $d (not used by this version)" }
+        Do-It "forget $d" { Remove-Item $marker -Force }
+    }
 }
 if ($Remind -ge 0) {
     Say "   save reminder: $(if ($Remind -eq 0) { 'off' } else { "every $Remind min without a /reload" })"

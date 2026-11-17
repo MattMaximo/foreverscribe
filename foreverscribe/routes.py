@@ -11,10 +11,11 @@ In game: press /fs go (bind it: Esc > Options > Keybindings > AddOns > ForeverSc
 waypoint + arrow; arriving within the stop's radius (default 15 yd) sets the next one; /fs next skips, /fs back
 goes back, /fs route lists, /fs route clear stops.
 
-How the route reaches the game. WoW reads addon files only when they load, so 0.5 installs ten small
-load-on-demand "route slot" addons (ForeverScribe_Route01-10). `route write` rewrites Route.lua in all of them;
-/fs go loads the next slot not used yet this session, which reads the file fresh. A slot loads once per session:
-ten /fs go presses, then /reload frees them (your place on the route is kept in SavedVariables).
+How the route reaches the game. WoW reads addon files only when they load, so the kit installs three small
+load-on-demand "route slot" addons (ForeverScribe_Route01-03, "ForeverScribe · Route 1-3" in the AddOns list; 0.5-0.9
+shipped ten). `route write` rewrites Route.lua in every installed slot; /fs go loads the next slot not used yet this
+session, which reads the file fresh. A slot loads once per session: three new routes, then /reload frees them (your
+place on the route is kept in SavedVariables, and /fs go on the same route carries on without a slot).
   local   (agent on the game computer)   written straight into Interface/AddOns/ForeverScribe_RouteNN/Route.lua
   folder  (synced folder)               written to <folder>/_route/Route.lua; the game-side sync agent copies it
                                         into the slots when it appears (seconds after the folder syncs)
@@ -32,7 +33,7 @@ import time
 
 from . import config as C
 
-SLOTS = 10
+SLOTS = 10  # slot folders looked for (0.10 kits install 01-03; older installs may still have 04-10)
 MAX_STOPS = 50
 DEFAULT_RADIUS = 15
 ROUTE_FORMAT = 1

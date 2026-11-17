@@ -7,8 +7,8 @@
 #   ./install.sh --folder "<synced folder>"   agent on another computer: copy into iCloud Drive/Dropbox/OneDrive/...
 #   (--pair and --folder can be combined: push first, the folder is a backup)
 # Options: --wow-dir DIR   --remind MINUTES (save reminder, 0 = off)   --extra "ForeverForge*.lua Polestar.lua ..."
-#          --dry-run (show, change nothing)
-# Touches only: Interface/AddOns/ForeverScribe(_Live, _Prices, _Route01-10), ~/Library/Application Support/ForeverScribe/,
+#          --live (also the optional ForeverScribe_Live pixel strip; --no-live removes it)   --dry-run (show, change nothing)
+# Touches only: Interface/AddOns/ForeverScribe(_Prices, _Route01-03, _Live with --live), ~/Library/Application Support/ForeverScribe/,
 #   ~/Library/LaunchAgents/io.foreverscribe.sync.plist. Undo everything with ./uninstall.sh.
 set -euo pipefail
 
@@ -21,8 +21,10 @@ LABEL="io.foreverscribe.sync"
 PLIST="$AGENTS/$LABEL.plist"
 LAUNCHCTL="${LAUNCHCTL:-launchctl}"
 DRY=0; ADDON_ONLY=0; PAIR=""; FOLDER=""; REMIND=""; EXTRA="ForeverForge*.lua Polestar.lua"
-ADDON_DIRS="ForeverScribe ForeverScribe_Live ForeverScribe_Prices"
-for i in 01 02 03 04 05 06 07 08 09 10; do ADDON_DIRS="$ADDON_DIRS ForeverScribe_Route$i"; done
+ADDON_DIRS="ForeverScribe ForeverScribe_Prices ForeverScribe_Route01 ForeverScribe_Route02 ForeverScribe_Route03"
+# folders older kits installed that 0.10 no longer uses (removed again only when this installer put them there)
+RETIRED="ForeverScribe_Route04 ForeverScribe_Route05 ForeverScribe_Route06 ForeverScribe_Route07 ForeverScribe_Route08 ForeverScribe_Route09 ForeverScribe_Route10"
+LIVE=""   # "" = keep an earlier --live choice, 1 = --live, 0 = --no-live
 
 say() { printf '%s\n' "$*"; }
 run() { if [ $DRY -eq 1 ]; then say "  [dry-run] $*"; else "$@"; fi; }
@@ -37,6 +39,8 @@ while [ $# -gt 0 ]; do
 		--wow-dir) WOW_DIR="${2:?}"; shift ;;
 		--remind) REMIND="${2:?}"; shift ;;
 		--extra) EXTRA="${2-}"; shift ;;
+		--live) LIVE=1 ;;
+		--no-live) LIVE=0 ;;
 		-h|--help) usage 0 ;;
 		*) say "unknown option: $1"; usage 2 ;;
 	esac
@@ -46,8 +50,15 @@ done
 [ "$(id -u)" -eq 0 ] && { say "Run this as your normal user, not with sudo."; exit 1; }
 ADDONS="$WOW_DIR/Interface/AddOns"
 [ -d "$ADDONS" ] || { say "AddOns folder not found: $ADDONS"; say "Pass --wow-dir \"<...>/World of Warcraft/_forever_\"."; exit 1; }
+# ForeverScribe_Live (screen-readable pixel strip) is opt-in: installed only with --live, and kept on a reinstall only
+# when an earlier --live asked for it. Kits carry it under optional/, a repo checkout under addon/.
+if [ -z "$LIVE" ]; then
+	LIVE=0; [ -f "$SUPPORT/install-manifest.txt" ] && grep -qx 'live=1' "$SUPPORT/install-manifest.txt" && LIVE=1
+fi
+src_of() { if [ -f "$KIT/addon/$1/$1.toc" ]; then echo "$KIT/addon/$1"; else echo "$KIT/optional/$1"; fi; }
+if [ "$LIVE" = 1 ]; then ADDON_DIRS="$ADDON_DIRS ForeverScribe_Live"; else RETIRED="$RETIRED ForeverScribe_Live"; fi
 for d in $ADDON_DIRS; do
-	[ -f "$KIT/addon/$d/$d.toc" ] || { say "Kit is incomplete: missing addon/$d"; exit 1; }
+	[ -f "$(src_of "$d")/$d.toc" ] || { say "Kit is incomplete: missing addon/$d"; exit 1; }
 done
 case "$REMIND" in ''|*[!0-9]*) [ -n "$REMIND" ] && { say "--remind takes whole minutes"; exit 2; } ;; esac
 
@@ -80,7 +91,7 @@ fi
 TS="$(date +%Y%m%d-%H%M%S)"
 run mkdir -p "$SUPPORT"
 MANIFEST="$SUPPORT/install-manifest.txt"
-[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.9.0"; } > "$MANIFEST.new"
+[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.10.0"; [ "$LIVE" = 1 ] && echo "live=1"; true; } > "$MANIFEST.new"
 
 # A new pairing (other receiver, relay channel or transport) must get every file once, even ones unchanged since
 # they were delivered somewhere else: forget what was "already pushed".
@@ -98,9 +109,15 @@ for d in $ADDON_DIRS; do
 			say "   existing $d moved to $SUPPORT/backup-$TS/"
 		fi
 	fi
-	run cp -R "$KIT/addon/$d" "$ADDONS/$d"
+	run cp -R "$(src_of "$d")" "$ADDONS/$d"
 	run touch "$SUPPORT/installed-$d"
 	[ $DRY -eq 0 ] && echo "addon=$ADDONS/$d" >> "$MANIFEST.new"
+done
+for d in $RETIRED; do   # only folders an earlier run of this installer put there
+	if [ -f "$SUPPORT/installed-$d" ]; then
+		if [ -d "$ADDONS/$d" ]; then run rm -rf "$ADDONS/$d"; say "   removed $d (not used by this version)"; fi
+		run rm -f "$SUPPORT/installed-$d"
+	fi
 done
 if [ -n "$REMIND" ]; then
 	say "   save reminder: every $REMIND min without a /reload"
@@ -133,7 +150,11 @@ say "2) Sync agent -> $SUPPORT"
 run rm -f "$SUPPORT/prices-checked"   # fetch prices on the first run
 run cp "$KIT/installers/macos/foreverscribe-sync.sh" "$SUPPORT/foreverscribe-sync.sh" 2>/dev/null || run cp "$HERE/foreverscribe-sync.sh" "$SUPPORT/foreverscribe-sync.sh"
 run chmod 755 "$SUPPORT/foreverscribe-sync.sh"
-[ -f "$KIT/foreverscribe/live_capture.py" ] && run cp "$KIT/foreverscribe/live_capture.py" "$SUPPORT/live_capture.py"
+if [ "$LIVE" = 1 ]; then
+	[ -f "$KIT/foreverscribe/live_capture.py" ] && run cp "$KIT/foreverscribe/live_capture.py" "$SUPPORT/live_capture.py"
+else
+	run rm -f "$SUPPORT/live_capture.py"
+fi
 if [ $DRY -eq 0 ]; then
 	umask 077
 	{

@@ -4,7 +4,8 @@
 -- Interface/AddOns/ForeverScribe_RouteNN/Route.lua, small load-on-demand addons that were installed before the game
 -- started. `/fs go` (or its key binding) loads the next not-yet-loaded slot with C_AddOns.LoadAddOn, which reads the
 -- file from disk at that moment. A slot can be loaded once per UI session, so there are SLOTS of them; /reload
--- frees them all. The route and the current stop are kept in SavedVariables, so progress survives /reload and logout.
+-- frees them all. Three slots (0.10; 0.5-0.9 shipped ten) = three new routes per session before a /reload, which
+-- keeps the AddOns list short; the save reminder and "same route" presses carrying on make that enough in play. The route and the current stop are kept in SavedVariables, so progress survives /reload and logout.
 --
 -- On a route: the current stop gets a waypoint (Waypoint.lua: native pin + arrow, or Polestar/TomTom). With Polestar
 -- loaded its arrow takes the stop through Polestar.Nav.API.Navigate, one stop at a time (its API takes one target;
@@ -17,7 +18,7 @@ local Try, Call, Clean = U.Try, U.Call, U.Clean
 
 local R = {}
 FS.Route = R
-R.SLOTS = 10
+R.SLOTS = 3
 R.MAX_STOPS = 50
 R.DEFAULT_RADIUS = 15 -- yards
 R.TICK = 1
@@ -98,8 +99,8 @@ function R.LoadSlot()
 		end
 	end
 	if missing > 0 then
-		return false, "route slots are missing or disabled: install ForeverScribe 0.5 (it adds ForeverScribe_Route01-" ..
-			string.format("%02d", R.SLOTS) .. "), restart the game, and leave them ticked under ForeverScribe in the AddOns list"
+		return false, "route slots are missing or disabled: install ForeverScribe 0.10 (it adds \"ForeverScribe · Route 1-" ..
+			R.SLOTS .. "\"), restart the game, and leave them ticked under ForeverScribe in the AddOns list"
 	end
 	return false, "all " .. R.SLOTS .. " route slots were used this session; /reload frees them (your place on the route is kept)"
 end
@@ -265,14 +266,18 @@ function R.Clear()
 	Print("route cleared")
 end
 
+function R.SlotsUsed()
+	local used = 0
+	for i = 1, R.SLOTS do if isLoaded(R.SlotName(i)) then used = used + 1 end end
+	return used
+end
+
 function R.Command(arg)
 	arg = tostring(arg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
 	if arg == "" or arg == "list" or arg == "show" then R.List()
 	elseif arg == "clear" or arg == "stop" then R.Clear()
 	elseif arg == "slots" then
-		local used = 0
-		for i = 1, R.SLOTS do if isLoaded(R.SlotName(i)) then used = used + 1 end end
-		Print(string.format("route slots used this session: %d of %d (/reload frees them)", used, R.SLOTS))
+		Print(string.format("route slots used this session: %d of %d (/reload frees them)", R.SlotsUsed(), R.SLOTS))
 	else Print("/fs go | /fs next | /fs back | /fs route [clear|slots]") end
 end
 

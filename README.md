@@ -147,7 +147,7 @@ close) the addon notes its id and where you stood, so `way` answers "confirmed i
 
 Ask your agent for a route ("vendor, then the trainer, then the flight master") and press **`/fs go`** (bindable):
 an arrow to each stop, the next one set as you arrive. The agent writes the route into small load-on-demand
-"route slot" addons; one keypress loads it, ten per session (`/reload` frees them). Details, transports and limits:
+"route slot" addons; one keypress loads it, three new routes per session (`/reload` frees them). Details, transports and limits:
 [`docs/ROUTES-AND-NPCS.md`](docs/ROUTES-AND-NPCS.md).
 
 ## Optional extras
@@ -159,7 +159,10 @@ an arrow to each stop, the next one set as you arrive. The agent writes the rout
 - **Other addons' SavedVariables** (e.g. Forever Forge, Polestar): listed in `[sync] extra_saved_variables` (matched
   in the account folder and every character's folder), shipped alongside; Polestar's is parsed, others kept raw until
   a parser exists (`foreverscribe files`).
-- **Live strip** (macOS, advanced): `ForeverScribe_Live` + `foreverscribe/live_capture.py` stream events between saves.
+- **Options panel** (0.10): Esc → Options → AddOns → ForeverScribe, the minimap addons button, or `/scribe`: on/off
+  for the price tooltip and craft profit, the save reminder, the waypoint arrow, plus status.
+- **Live strip** (macOS, advanced, opt-in): `install.sh --live` adds `ForeverScribe_Live`; `foreverscribe/live_capture.py`
+  then reads events off the screen between saves. Not installed by default.
 
 ## Data sources
 
@@ -174,7 +177,7 @@ an arrow to each stop, the next one set as you arrive. The agent writes the rout
 ## Repository layout
 
 ```
-addon/            ForeverScribe (+ ForeverScribe_Live, ForeverScribe_Prices, ForeverScribe_Route01-10 route slots) — the WoW addon
+addon/            ForeverScribe (+ ForeverScribe_Prices, ForeverScribe_Route01-03 route slots, optional ForeverScribe_Live) — the WoW addon
 data/             npc-locations.json: shared NPC sightings (contributions by pull request)
 foreverscribe/    Python package: store, queries, CLI, MCP server, receiver, auth, config, wowhead, waypoints, npcs, routes, ah, prices, live capture
 bin/              foreverscribe (POSIX) and foreverscribe.cmd (Windows) launchers

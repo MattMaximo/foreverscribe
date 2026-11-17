@@ -392,20 +392,20 @@ class LiveRelay(unittest.TestCase):
             P.PAGE_PAUSE = saved_pause
         self.assertIn("relay", [d["transport"] for d in st["written_to"]])
         log = self.game_sync()
-        self.assertIn("route %s from relay written to 10 slots" % rev, log)
+        self.assertIn("route %s from relay written to 3 slots" % rev, log)
         self.assertIn("from relay written", log)
-        self.assertIn('rev = "%s"' % rev, rd(os.path.join(addons, "ForeverScribe_Route10", "Route.lua"), "r"))
+        self.assertIn('rev = "%s"' % rev, rd(os.path.join(addons, "ForeverScribe_Route03", "Route.lua"), "r"))
         self.assertEqual(P.file_rev(os.path.join(addons, "ForeverScribe_Prices", "Prices.lua")), st["rev"])
         self.assertNotIn("from relay", self.game_sync(), "unchanged: not fetched again")
         # a relay replaying an older, validly signed route under a new seq is refused by the game side
         from foreverscribe import relay as RL0, config as C0
         pr0 = RL0.pairing(C0.load())
-        old_route = rd(os.path.join(addons, "ForeverScribe_Route10", "Route.lua"))
+        old_route = rd(os.path.join(addons, "ForeverScribe_Route03", "Route.lua"))
         bid, blob = RC.seal(pr0["key"], pr0["channel"], "route", old_route.replace(rev.encode(), b"1000000000-deadbeef"),
                             now=int(time.time()) - 3600)
         RL0.call_json("%s/v1/ch/%s/files/down/%s" % (pr0["url"], pr0["channel"], bid), "PUT", token=pr0["agent_token"], body=blob)
         self.assertIn("relay offered an older route", self.game_sync())
-        self.assertIn('rev = "%s"' % rev, rd(os.path.join(addons, "ForeverScribe_Route10", "Route.lua"), "r"))
+        self.assertIn('rev = "%s"' % rev, rd(os.path.join(addons, "ForeverScribe_Route03", "Route.lua"), "r"))
         # the pickup shows up in `route status` after the agent's next status poll
         from foreverscribe import relay as RL, config as C
         cfg = C.load()

@@ -27,7 +27,7 @@ from test_waypoints import fake_search, fake_tip  # noqa: E402
 
 LUA = fsenv.find_lua()
 SYNC = os.path.join(ROOT, "installers", "macos", "foreverscribe-sync.sh")
-SLOTS = ["ForeverScribe_Route%02d" % i for i in range(1, 11)]
+SLOTS = ["ForeverScribe_Route%02d" % i for i in range(1, 4)]  # 0.10 ships three slots
 
 
 def read(path):
@@ -240,7 +240,7 @@ class Routes(Sandbox):
         self.build()
         rc, out = self.run_main(RT.main, ["write", "--name", "Errands"])
         self.assertEqual(rc, 0, out)
-        self.assertIn("10 route slots", out)
+        self.assertIn("3 route slots", out)
         self.assertIn("/fs go", out)
         texts = {read(os.path.join(addons, s, "Route.lua")) for s in SLOTS}
         self.assertEqual(len(texts), 1)
@@ -278,8 +278,8 @@ class Routes(Sandbox):
         support = os.path.join(self.t, "support")
         os.makedirs(support)
         log = self.sync(wow, support, folder=folder)
-        self.assertIn("written to 10 slots: press /fs go", log)
-        self.assertEqual(read(os.path.join(addons, SLOTS[4], "Route.lua")), read(src))
+        self.assertIn("written to 3 slots: press /fs go", log)
+        self.assertEqual(read(os.path.join(addons, SLOTS[1], "Route.lua")), read(src))
         self.assertNotIn("press /fs go", self.sync(wow, support, folder=folder), "same rev: quiet")
         # a tampered file (code in it) is never copied into the game
         good = read(src)
@@ -326,9 +326,9 @@ class Routes(Sandbox):
                 urllib.request.urlopen(req, timeout=5)
             self.assertEqual(cm.exception.code, 403)
             log = self.sync(wow, support, url=url, key_id=p["key_id"])
-            self.assertIn("from receiver written to 10 slots", log)
+            self.assertIn("from receiver written to 3 slots", log)
             rev = RT.load()["rev"]
-            self.assertIn('rev = "%s"' % rev, read(os.path.join(addons, SLOTS[9], "Route.lua")))
+            self.assertIn('rev = "%s"' % rev, read(os.path.join(addons, SLOTS[2], "Route.lua")))
             pk = json.loads(read(os.path.join(self.data, "route", "pickup.json")))
             self.assertEqual(pk["rev"], rev)
             self.assertNotIn("press /fs go", self.sync(wow, support, url=url, key_id=p["key_id"]), "304: unchanged")

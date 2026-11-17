@@ -14,7 +14,7 @@ function W.Reset()
 	W.combat = false
 	W.worldSize = { [1453] = { 1737.5, 1158.3 }, [1429] = { 3470.8, 2314.6 }, [1432] = { 2758.3, 1839.6 } }
 	W.slotDir = nil -- folder holding ForeverScribe_RouteNN/Route.lua (default: the repo's addon/)
-	W.slotCount = 10
+	W.slotCount = 3
 	W.slotsLoaded = {}
 	W.tickers = {}
 end

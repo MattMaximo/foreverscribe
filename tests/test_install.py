@@ -95,8 +95,11 @@ class MacInstaller(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertTrue(os.path.isfile(os.path.join(self.addons, "ForeverScribe", "ForeverScribe.toc")))
         self.assertTrue(os.path.isdir(os.path.join(self.addons, "Polestar")), "other addons untouched")
-        for i in range(1, 11):
+        for i in range(1, 4):
             self.assertTrue(os.path.isfile(os.path.join(self.addons, "ForeverScribe_Route%02d" % i, "Route.lua")), "route slot %d" % i)
+        self.assertFalse(os.path.exists(os.path.join(self.addons, "ForeverScribe_Route04")), "0.10 ships three slots")
+        self.assertFalse(os.path.exists(os.path.join(self.addons, "ForeverScribe_Live")), "Live is opt-in")
+        self.assertFalse(os.path.exists(self.support("live_capture.py")), "no live capture helper without --live")
         with open(os.path.join(self.addons, "ForeverScribe", "Defaults.lua")) as fh:
             self.assertIn("saveReminderMinutes = 30", fh.read())
         with open(self.support("game.conf")) as fh:
@@ -147,6 +150,49 @@ class MacInstaller(unittest.TestCase):
         with open(os.path.join(self.addons, "ForeverScribe", "mine.txt")) as fh:
             self.assertEqual(fh.read(), "user copy", "the pre-existing folder is restored")
 
+    def test_live_is_opt_in_and_an_old_default_install_loses_it(self):
+        """0.3-0.9 kits installed ForeverScribe_Live and ten route slots by default; 0.10 removes what it put there."""
+        # what a 0.9 install left behind: Live + Route01-10 (marked as ours) and a user's own unrelated folder
+        for d in ["ForeverScribe_Live"] + ["ForeverScribe_Route%02d" % i for i in range(1, 11)]:
+            os.makedirs(os.path.join(self.addons, d))
+            with open(os.path.join(self.addons, d, d + ".toc"), "w") as fh:
+                fh.write("## Interface: 16001\n")
+        os.makedirs(self.support())
+        for d in ["ForeverScribe_Live"] + ["ForeverScribe_Route%02d" % i for i in range(1, 11)]:
+            open(self.support("installed-" + d), "w").close()
+        r = self.run_kit("install.sh", "--addon-only")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.addons, "ForeverScribe_Live")), "default install removes our old Live copy")
+        for i in range(4, 11):
+            self.assertFalse(os.path.exists(os.path.join(self.addons, "ForeverScribe_Route%02d" % i)), "retired slot %d removed" % i)
+            self.assertFalse(os.path.exists(self.support("installed-ForeverScribe_Route%02d" % i)))
+        self.assertIn("removed ForeverScribe_Live", r.stdout)
+        # --live installs it (from the kit's optional/ folder) and a plain reinstall keeps that choice
+        r = self.run_kit("install.sh", "--addon-only", "--live")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(os.path.isfile(os.path.join(self.addons, "ForeverScribe_Live", "Live.lua")))
+        r = self.run_kit("install.sh", "--addon-only")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(os.path.isfile(os.path.join(self.addons, "ForeverScribe_Live", "Live.lua")), "earlier --live is kept")
+        r = self.run_kit("install.sh", "--addon-only", "--no-live")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.addons, "ForeverScribe_Live")))
+        # uninstall still cleans everything it put there
+        r = self.run_kit("uninstall.sh")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        for d in os.listdir(self.addons):
+            self.assertFalse(d.startswith("ForeverScribe"), d)
+
+    def test_a_live_copy_the_user_installed_by_hand_is_left_alone(self):
+        os.makedirs(os.path.join(self.addons, "ForeverScribe_Live"))
+        with open(os.path.join(self.addons, "ForeverScribe_Live", "mine.txt"), "w") as fh:
+            fh.write("hand copy")
+        r = self.run_kit("install.sh", "--addon-only")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(os.path.isfile(os.path.join(self.addons, "ForeverScribe_Live", "mine.txt")))
+        r = self.run_kit("uninstall.sh")
+        self.assertTrue(os.path.isfile(os.path.join(self.addons, "ForeverScribe_Live", "mine.txt")))
+
     def test_addon_only_for_same_computer(self):
         r = self.run_kit("install.sh", "--addon-only")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -183,9 +229,21 @@ class MacInstaller(unittest.TestCase):
         for base, _, files in os.walk(MAC_KIT):
             names |= {os.path.relpath(os.path.join(base, f), MAC_KIT) for f in files}
         for need in ("install.sh", "uninstall.sh", "installers/macos/foreverscribe-sync.sh", "README.md", "LICENSE",
-                     "LICENSE-wow-ai.txt", "addon/ForeverScribe/ForeverScribe.toc", "addon/ForeverScribe/Defaults.lua"):
+                     "LICENSE-wow-ai.txt", "addon/ForeverScribe/ForeverScribe.toc", "addon/ForeverScribe/Defaults.lua",
+                     "addon/ForeverScribe/Options.lua", "addon/ForeverScribe/Options.xml", "optional/ForeverScribe_Live/Live.lua"):
             self.assertIn(need, names)
+        tops = {n.split("/")[1] for n in names if n.startswith("addon/")}
+        self.assertEqual(tops, {"ForeverScribe", "ForeverScribe_Prices", "ForeverScribe_Route01", "ForeverScribe_Route02",
+                                "ForeverScribe_Route03"}, "addon/ is what a copy-everything install gets: no Live")
+        import zipfile
+        with zipfile.ZipFile(os.path.join(DIST, "ForeverScribe-addon-%s.zip" % __version__)) as z:
+            self.assertFalse([n for n in z.namelist() if "ForeverScribe_Live" in n], "addon zip has no Live")
         self.assertTrue(os.path.exists(os.path.join(DIST, "ForeverScribe-%s-macos.zip" % __version__)))
+
+
+def src_ps1():
+    with open(os.path.join(ROOT, "installers", "windows", "install.ps1"), encoding="utf-8") as fh:
+        return fh.read()
 
 
 class WindowsInstaller(unittest.TestCase):
@@ -220,7 +278,7 @@ class WindowsInstaller(unittest.TestCase):
             self.assertNotIn("-Verb RunAs", src, "never asks for admin")
         with open(self.SCRIPTS[0], encoding="utf-8") as fh:
             src = fh.read()
-        for need in ("-DryRun", "-Uninstall", "-AddonOnly", "-Pair", "-Folder", "Register-ScheduledTask", "/v1/auth-check"):
+        for need in ("-DryRun", "-Uninstall", "-AddonOnly", "-Pair", "-Folder", "-Live", "-NoLive", "Register-ScheduledTask", "/v1/auth-check"):
             self.assertIn(need.lstrip("-") if need.startswith("-") else need, src)
 
     def test_signature_matches_python(self):
@@ -240,6 +298,11 @@ class WindowsInstaller(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(WIN_KIT, "installers", "windows", "foreverscribe-sync.ps1")))
         self.assertTrue(os.path.isfile(os.path.join(WIN_KIT, "addon", "ForeverScribe", "ForeverScribe.toc")))
         self.assertTrue(os.path.exists(os.path.join(DIST, "ForeverScribe-%s-windows.zip" % __version__)))
+        self.assertTrue(os.path.isfile(os.path.join(WIN_KIT, "optional", "ForeverScribe_Live", "Live.lua")))
+        self.assertFalse(os.path.exists(os.path.join(WIN_KIT, "addon", "ForeverScribe_Live")))
+        # Live only on request: the default list has no Live, the old slots 04-10 and Live are cleaned only when ours
+        self.assertIn('$AddonDirs = @("ForeverScribe", "ForeverScribe_Prices") + (1..3 |', src_ps1())
+        self.assertIn('if ($WantLive) { $AddonDirs += "ForeverScribe_Live" } else { $Retired += "ForeverScribe_Live" }', src_ps1())
 
 
 if __name__ == "__main__":

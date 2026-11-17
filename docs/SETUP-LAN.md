@@ -21,7 +21,7 @@ Example: WoW on a Windows PC, the AI agent on a Mac mini, both on the same Wi-Fi
 2. In that folder, open PowerShell and run the line `pair` printed, e.g.
    `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Pair fs1.xxxxxxxx`
    (add `-WowDir "D:\...\_forever_"` if WoW isn't in the default folder).
-3. Fully restart WoW, tick **ForeverScribe** and **ForeverScribe prices** under AddOns, log in, `/scribe status`, `/reload`.
+3. Fully restart WoW, tick **ForeverScribe** (and its **ForeverScribe · Prices** / **Route** entries) under AddOns, log in, `/scribe status`, `/reload`.
 
 ## Check
 On the Mac mini: `bin/foreverscribe receiver health` and `bin/foreverscribe summary` (should show your character

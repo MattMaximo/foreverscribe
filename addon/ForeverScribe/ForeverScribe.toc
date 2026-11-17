@@ -1,8 +1,12 @@
 ## Interface: 16001
 ## Title: ForeverScribe
-## Notes: Read-only character journal for your AI agent: snapshot + event log in SavedVariables. No network, no automation; the only chat read is auction-outcome system lines. /scribe way sets a map pin + arrow; /fs go walks a route your agent wrote. Notes where you meet NPCs. Item tooltips show auction-house prices your agent wrote (/scribe tooltip). Tells your agent which Polestar guide step you are on (read-only). The profession window shows craft cost, sells-for and profit (/scribe craftprices).
+## Notes: Read-only character journal for your AI agent (saved when you /reload or log out). Item tooltips show auction prices your agent wrote, the profession window shows craft cost and profit, /scribe way and /fs go set map pins. No network, no automation. Type /scribe for options.
 ## Author: ForeverScribe contributors
-## Version: 0.9.0
+## Version: 0.10.0
+## IconTexture: Interface\ICONS\INV_Scroll_04
+## AddonCompartmentFunc: ForeverScribe_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ForeverScribe_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ForeverScribe_OnAddonCompartmentLeave
 ## SavedVariables: ForeverScribeDB
 ## OptionalDeps: ForeverScribe_Live, ForeverScribe_Prices, Polestar
 
@@ -16,3 +20,5 @@ Route.lua
 Tooltip.lua
 Craft.lua
 Guide.lua
+Options.lua
+Options.xml

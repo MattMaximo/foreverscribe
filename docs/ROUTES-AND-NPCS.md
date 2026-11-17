@@ -123,9 +123,10 @@ SavedVariables, so progress survives `/reload` and logout, and the stop is put b
 WoW reads addon files only when an addon loads, and only discovers addon folders at launch
 (research: chelinho139/wow-ai `docs/ARCHITECTURE.md`, measured on a live Forever client by 0xInuarashi/wow-forever-codex:
 files must exist at launch; a not-yet-loaded file is read fresh on first use; each load-on-demand addon loads once
-per UI session; `/reload` unloads them all). So 0.5 installs ten tiny **route slot** addons,
-`ForeverScribe_Route01` … `ForeverScribe_Route10` (`## LoadOnDemand: 1`, one `Route.lua`, shipped empty). The
-companion rewrites `Route.lua` in all of them; `/fs go` calls `C_AddOns.LoadAddOn` on the next slot not yet loaded
+per UI session; `/reload` unloads them all). So the kit installs three tiny **route slot** addons,
+`ForeverScribe_Route01` … `ForeverScribe_Route03` ("ForeverScribe · Route 1–3 (used by /fs go)" in the AddOns list,
+grouped under ForeverScribe; `## LoadOnDemand: 1`, one `Route.lua`, shipped empty; 0.5–0.9 shipped ten). The
+companion rewrites `Route.lua` in every installed slot; `/fs go` calls `C_AddOns.LoadAddOn` on the next slot not yet loaded
 this session, which reads the new file. The file is data only (`ForeverScribe_RouteData = {v=1, rev, name, created, stops={...}}`);
 the addon validates it (format version, rev charset, map ids, 0–100 coordinates, ≤50 stops, titles stripped of
 `|`, quotes and control characters).
@@ -144,10 +145,15 @@ That is the only thing the sync agent writes inside the WoW folder.
 
 - **One keypress per route.** The addon cannot notice a new file on its own; `/fs go` (or its key) is required.
   Pressing it before the file arrived says "same route as before" or "the route file is empty"; wait a few seconds and press again.
-- **10 loads per UI session.** Every `/fs go` uses one slot, even a press that found nothing new. After ten, `/fs go`
-  says so and keeps the current route; `/reload` frees all ten (and saves your place).
-- **First install needs a full game restart** (new addon folders are only discovered at launch) and the ten slots must
-  stay enabled in the AddOns list (they are grouped under ForeverScribe).
+- **3 loads per UI session.** Every `/fs go` uses one slot, even a press that found nothing new. After three, `/fs go`
+  says so and carries on with the current route; `/reload` frees all three (and saves your place). `/fs route slots`
+  and the options panel show how many are used.
+- **Why three, not ten (0.10).** Each slot is one more line in the AddOns list, and the list can't hide or collapse
+  them: `## Group` only nests them under ForeverScribe, which already happens. Three covers "a route, a corrected
+  route, one more" between saves; with the save reminder on you /reload often anyway. A lot of route changes in one
+  session needs a /reload in between. No TOC field shrinks this: a slot must exist at launch and loads once.
+- **First install needs a full game restart** (new addon folders are only discovered at launch) and the three slots
+  must stay enabled in the AddOns list.
 - Distance-based arrival needs a position: inside instances (no map position) use `/fs next`.
 - Delivery latency: local = instant; http ≈ up to 30 s; folder = your sync service's delay + up to 30 s.
 

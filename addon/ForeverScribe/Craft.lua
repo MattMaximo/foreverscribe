@@ -470,15 +470,26 @@ function K.Debug()
 	P("craftdebug: errors " .. tostring(FS.errors or 0) .. " last: " .. tostring(FS.lastError))
 end
 
+-- On/off without a chat line (the options panel); redraws an open profession window.
+function K.Set(on)
+	local db = FS.db or ForeverScribeDB
+	if db and db.settings then db.settings.craftprices = on and "on" or "off" end
+	K.Apply()
+end
+
+function K.Apply()
+	if K.Enabled() then
+		if box then box.rid = nil end
+		pcall(K.Update, 0)
+	else pcall(K.HideAll) end
+end
+
 function K.Command(arg)
 	local db = FS.db or ForeverScribeDB
 	if tostring(arg or ""):lower() == "debug" then return K.Debug() end
 	arg = tostring(arg or ""):lower()
 	if db and db.settings and (arg == "on" or arg == "off") then db.settings.craftprices = arg end
-	if K.Enabled() then
-		if box then box.rid = nil end
-		pcall(K.Update, 0)
-	else K.HideAll() end
+	K.Apply()
 	FS.Print("craft cost & profit in the profession window " .. (K.Enabled() and "on" or "off") .. ". /scribe craftprices on|off")
 	if K.Enabled() and not (T and T.Data and T.Data()) then
 		FS.Print("no prices loaded yet: your agent writes them with `foreverscribe prices write`; then /reload.")

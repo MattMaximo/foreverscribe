@@ -133,7 +133,7 @@ Evidence and paste-command syntaxes: [`WAYPOINTS.md`](WAYPOINTS.md).
 | Route progress | `C_AddOns.LoadAddOn("ForeverScribe_RouteNN")` (doc), `C_AddOns.IsAddOnLoaded`, `C_Timer.NewTicker` (doc), `C_Map.GetPlayerMapPosition`, waypoint calls as in v0.4 | `/fs go`, `/fs next`, `/fs back`, key bindings (Bindings.xml); 1 s ticker only while a route runs | `ForeverScribeDB.route {rev, name, stops[], i, started, done}`; events `route_start`, `route_done` | doc; unverified |
 
 Never: players, pets, other players' names or GUIDs, objects, secret values; no input automation, no `ReloadUI`.
-The route slot addons (`ForeverScribe_Route01-10`) contain only data the companion wrote; see `docs/ROUTES-AND-NPCS.md`.
+The route slot addons (`ForeverScribe_Route01-03`) contain only data the companion wrote; see `docs/ROUTES-AND-NPCS.md`.
 
 ## AH price tooltip (0.6, `Tooltip.lua`) — reads only, stores nothing
 

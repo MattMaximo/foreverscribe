@@ -1079,9 +1079,9 @@ test("route: same rev keeps progress; slots run out until /reload; progress surv
 	ForeverScribe.Slash("go")
 	truthy(lastChat():find("stop 2/3", 1, true) or table.concat(W.chat, "\n"):find("same route as before; stop 2/3", 1, true))
 	eq(ForeverScribeDB.route.i, 2, "same route: progress kept")
-	for _ = 3, 10 do ForeverScribe.Slash("go") end
+	ForeverScribe.Slash("go") -- slot 3
 	ForeverScribe.Slash("go")
-	truthy(table.concat(W.chat, "\n"):find("all 10 route slots were used this session; /reload frees them", 1, true))
+	truthy(table.concat(W.chat, "\n"):find("all 3 route slots were used this session; /reload frees them", 1, true))
 	eq(ForeverScribeDB.route.i, 2)
 	W.Relog(true)
 	eq(ForeverScribeDB.route.i, 2, "saved across /reload")
@@ -1128,13 +1128,19 @@ test("route + npcs: read-only source (no input automation, reload, chat sends or
 			truthy(not src:find(bad, 1, true), f .. " uses " .. bad)
 		end
 	end
+	W.Boot(); eq(ForeverScribe.Route.SLOTS, 3)
 	for i = 1, 10 do
 		local n = string.format("ForeverScribe_Route%02d", i)
-		local toc = assert(io.open(ROOT .. "addon/" .. n .. "/" .. n .. ".toc")):read("*a")
+		local fh = io.open(ROOT .. "addon/" .. n .. "/" .. n .. ".toc")
+		if i > 3 then truthy(not fh, n .. " is no longer shipped") else
+		local toc = assert(fh):read("*a"); fh:close()
 		truthy(toc:find("## LoadOnDemand: 1", 1, true) and toc:find("## Dependencies: ForeverScribe", 1, true), n)
 		truthy(toc:find("## Interface: 16001", 1, true), n .. " interface")
+		truthy(toc:find("## Title: ForeverScribe · Route " .. i .. " (used by /fs go)", 1, true), n .. " title")
+		truthy(toc:find("## Group: ForeverScribe", 1, true), n .. " grouped under ForeverScribe")
 		local body = assert(io.open(ROOT .. "addon/" .. n .. "/Route.lua")):read("*a")
 		truthy(body:find("ForeverScribe_RouteData = nil", 1, true), n .. " ships empty")
+		end
 	end
 end)
 
@@ -1630,6 +1636,186 @@ test("route + Polestar: each stop goes to Polestar's arrow; its guide taking the
 	ForeverScribe.Slash("go")
 	eq(W.polestar.target.owner, "ForeverScribe", "/fs go points it back")
 end)
+
+---------------------------------------------------------------------------
+-- v0.10 options panel, minimap compartment, tidy addon list (tests/lua/wow_stub_settings.lua)
+---------------------------------------------------------------------------
+local function setting(var) return W.settings.settings[var] end
+local function kinds()
+	local out = {}
+	for _, i in ipairs(W.SettingsRows()) do
+		out[#out + 1] = i.kind == "header" and ("# " .. i.data.name) or (i.data.setting and i.data.setting.name) or i.data.name or i.kind
+	end
+	return out
+end
+
+test("options: without the Settings API there is no panel; /scribe prints status, nothing errors", function()
+	W.Boot()
+	eq(Settings, nil)
+	eq(ForeverScribe.Options.Register(), false)
+	ForeverScribe.Slash("")
+	truthy(table.concat(W.chat, "\n"):find("v0.10.0", 1, true), "status line instead of a panel")
+	ForeverScribe_OnAddonCompartmentClick("ForeverScribe", "LeftButton")
+	ForeverScribe_OnAddonCompartmentEnter("ForeverScribe", UIParent)
+	ForeverScribe_OnAddonCompartmentLeave("ForeverScribe", UIParent)
+	ForeverScribe.Slash("tooltip off") -- Refresh with no panel
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("options: a broken Settings API is caught, not raised", function()
+	W.FakeSettings()
+	Settings.RegisterProxySetting = function() error("boom") end
+	W.Boot()
+	eq(ForeverScribe.Options.Register(), false)
+	truthy(tostring(ForeverScribe.lastError):find("options panel", 1, true), tostring(ForeverScribe.lastError))
+	ForeverScribe.Slash("")
+	truthy(lastChat():find("Data reaches your agent", 1, true), "falls back to status")
+end)
+
+test("options: registers one AddOns category with the toggles, dropdowns and status rows", function()
+	local S = W.FakeSettings()
+	W.Boot()
+	eq(#S.categories, 1); eq(S.categories[1].name, "ForeverScribe")
+	eq(#S.addOnCategories, 1, "listed under AddOns"); eq(S.addOnCategories[1], S.categories[1])
+	local rows = table.concat(kinds(), " | ")
+	for _, want in ipairs({ "# Prices", "AH prices in item tooltips", "Only while holding Shift",
+		"Craft cost & profit in the profession window", "Remind me to /reload after", "Waypoint arrow", "# Status" }) do
+		truthy(rows:find(want, 1, true), "missing row " .. want .. " in " .. rows)
+	end
+	for var, s in pairs(S.settings) do truthy(var:match("^FOREVERSCRIBE_"), var); eq(type(s.default), s.varType, var .. " default type") end
+	-- Shift row is a child of the tooltip row and greys out with it
+	local shiftInit
+	for _, i in ipairs(W.SettingsRows()) do if i.data.setting == setting("FOREVERSCRIBE_TOOLTIP_SHIFT") then shiftInit = i end end
+	truthy(shiftInit and shiftInit.parent and shiftInit.parent.data.setting == setting("FOREVERSCRIBE_TOOLTIP"), "shift under tooltip")
+	-- the reminder dropdown: off / 15 / 30 / 60
+	local remindInit
+	for _, i in ipairs(W.SettingsRows()) do if i.data.setting == setting("FOREVERSCRIBE_REMIND") then remindInit = i end end
+	local opts = remindInit.data.options()
+	eq(#opts, 4); eq(opts[1].value, 0); eq(opts[1].label, "Off"); eq(opts[4].value, 60); eq(opts[3].label, "30 minutes")
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("options: panel and slash commands write the same settings both ways", function()
+	local S = W.FakeSettings()
+	W.Prices(); W.Boot()
+	local db = ForeverScribeDB.settings
+	-- panel -> slash state
+	setting("FOREVERSCRIBE_TOOLTIP"):SetValue(false); eq(db.tooltip, "off"); eq(ForeverScribe.Tooltip.Mode(), "off")
+	setting("FOREVERSCRIBE_TOOLTIP"):SetValue(true); eq(ForeverScribe.Tooltip.Mode(), "on")
+	setting("FOREVERSCRIBE_TOOLTIP_SHIFT"):SetValue(true); eq(ForeverScribe.Tooltip.Mode(), "shift")
+	setting("FOREVERSCRIBE_CRAFTPRICES"):SetValue(false); eq(db.craftprices, "off"); eq(ForeverScribe.Craft.Enabled(), false)
+	setting("FOREVERSCRIBE_REMIND"):SetValue(30); eq(ForeverScribe.ReminderMinutes(), 30)
+	setting("FOREVERSCRIBE_REMIND"):SetValue(0); eq(ForeverScribe.ReminderMinutes(), 0)
+	setting("FOREVERSCRIBE_WAYADDON"):SetValue("native"); eq(db.wayAddon, "native")
+	setting("FOREVERSCRIBE_WAYADDON"):SetValue("auto"); eq(db.wayAddon, nil)
+	setting("FOREVERSCRIBE_NPCTARGET"):SetValue(false); eq(db.npcTarget, false)
+	-- slash -> what the panel reads
+	ForeverScribe.Slash("tooltip on"); eq(setting("FOREVERSCRIBE_TOOLTIP"):GetValue(), true); eq(setting("FOREVERSCRIBE_TOOLTIP_SHIFT"):GetValue(), false)
+	ForeverScribe.Slash("tooltip shift"); eq(setting("FOREVERSCRIBE_TOOLTIP_SHIFT"):GetValue(), true); eq(setting("FOREVERSCRIBE_TOOLTIP"):GetValue(), true)
+	ForeverScribe.Slash("tooltip off"); eq(setting("FOREVERSCRIBE_TOOLTIP"):GetValue(), false); eq(setting("FOREVERSCRIBE_TOOLTIP_SHIFT"):GetValue(), false)
+	setting("FOREVERSCRIBE_TOOLTIP_SHIFT"):SetValue(true); eq(ForeverScribe.Tooltip.Mode(), "off", "Shift alone doesn't turn prices back on")
+	ForeverScribe.Slash("craftprices on"); eq(setting("FOREVERSCRIBE_CRAFTPRICES"):GetValue(), true)
+	ForeverScribe.Slash("remind 45"); eq(setting("FOREVERSCRIBE_REMIND"):GetValue(), 45)
+	local remindInit
+	for _, i in ipairs(W.SettingsRows()) do if i.data.setting == setting("FOREVERSCRIBE_REMIND") then remindInit = i end end
+	local labels = {}
+	for _, o in ipairs(remindInit.data.options()) do labels[#labels + 1] = o.label end
+	eq(table.concat(labels, ","), "Off,15 minutes,30 minutes,45 minutes,60 minutes", "a slash value outside the list still shows")
+	ForeverScribe.Slash("way addon native"); eq(setting("FOREVERSCRIBE_WAYADDON"):GetValue(), "native")
+	ForeverScribe.Slash("npcs target on"); eq(setting("FOREVERSCRIBE_NPCTARGET"):GetValue(), true)
+	ForeverScribe.Slash("played off"); eq(setting("FOREVERSCRIBE_PLAYED"):GetValue(), false)
+	-- an open panel is told to redraw after a slash command; a closed one is not
+	eq(S.notified.FOREVERSCRIBE_TOOLTIP, nil, "panel closed: no redraw")
+	S.panelShown = true
+	ForeverScribe.Slash("tooltip on")
+	truthy((S.notified.FOREVERSCRIBE_TOOLTIP or 0) >= 1, "open panel redrawn")
+	-- the setting survives /reload
+	W.Relog(true)
+	eq(ForeverScribeDB.settings.tooltip, "on"); eq(ForeverScribeDB.settings.remind, 45)
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("options: /scribe opens the panel; /scribe help lists commands; combat says later", function()
+	local S = W.FakeSettings()
+	W.Boot()
+	local n = #W.chat
+	ForeverScribe.Slash("")
+	eq(#S.opened, 1); eq(S.opened[1], S.categories[1]:GetID(), "opened on our page")
+	eq(#W.chat, n, "no chat spam when the panel opens")
+	ForeverScribe.Slash("help")
+	truthy(lastChat():find("tooltip on|off|shift", 1, true) and lastChat():find("craftprices", 1, true), lastChat())
+	ForeverScribe.Slash("status")
+	truthy(table.concat(W.chat, "\n"):find("v0.10.0", 1, true))
+	W.combat = true
+	ForeverScribe.Slash("")
+	eq(#S.opened, 1, "not opened in combat")
+	truthy(lastChat():find("after combat", 1, true), lastChat())
+	eq(W.reloads, 0, "nothing reloads")
+end)
+
+test("options: status rows show version, last save, price age and how data reaches the agent", function()
+	W.FakeSettings()
+	W.Prices(); W.Boot()
+	W.time = W.time + 20 * 60
+	local rows = W.RenderStatusRows()
+	local all = table.concat(rows, "\n")
+	eq(#rows, 5, all)
+	truthy(rows[1]:find("ForeverScribe 0.10.0", 1, true), rows[1])
+	truthy(all:find("Last save: ", 1, true) and all:find("20 min ago", 1, true), all)
+	truthy(all:find("Prices: PvP Alliance, 6 items, scanned 34 min ago", 1, true), all)
+	truthy(all:find("Route slots used this session: 0 of 3", 1, true), all)
+	truthy(all:find("after /reload, logout or quit", 1, true), all)
+	-- the save button reloads only when clicked
+	local button
+	for _, i in ipairs(W.SettingsRows()) do if i.kind == "button" then button = i end end
+	truthy(button, "save button"); eq(W.reloads, 0)
+	button.data.click(); eq(W.reloads, 1, "the player's click runs /reload")
+end)
+
+test("compartment: TOC points at real globals; click opens the panel, hover shows a tooltip", function()
+	local S = W.FakeSettings()
+	W.Prices(); W.Boot()
+	for _, field in ipairs({ "AddonCompartmentFunc", "AddonCompartmentFuncOnEnter", "AddonCompartmentFuncOnLeave" }) do
+		local fn = W.TocField("ForeverScribe", field)
+		truthy(fn and type(_G[fn]) == "function", field .. " -> " .. tostring(fn))
+	end
+	_G[W.TocField("ForeverScribe", "AddonCompartmentFunc")]("ForeverScribe", "LeftButton")
+	eq(#S.opened, 1); eq(S.opened[1], S.categories[1]:GetID())
+	_G[W.TocField("ForeverScribe", "AddonCompartmentFuncOnEnter")]("ForeverScribe", UIParent)
+	local seen = {}
+	for _, l in ipairs(GameTooltip.lines or {}) do seen[#seen + 1] = tostring(l.left) end
+	local text = table.concat(seen, "\n")
+	truthy(text:find("ForeverScribe", 1, true) and text:find("Click: options", 1, true), text)
+	_G[W.TocField("ForeverScribe", "AddonCompartmentFuncOnLeave")]("ForeverScribe", UIParent)
+	eq(ForeverScribe.errors or 0, 0, tostring(ForeverScribe.lastError))
+end)
+
+test("addon list: every shipped addon has an icon and a readable title grouped under ForeverScribe", function()
+	local icon = W.TocField("ForeverScribe", "IconTexture")
+	eq(icon, "Interface\\ICONS\\INV_Scroll_04")
+	for _, n in ipairs({ "ForeverScribe_Prices", "ForeverScribe_Route01", "ForeverScribe_Route02", "ForeverScribe_Route03", "ForeverScribe_Live" }) do
+		eq(W.TocField(n, "IconTexture"), icon, n .. " icon")
+		eq(W.TocField(n, "Group"), "ForeverScribe", n .. " group")
+		truthy(W.TocField(n, "Title"):find("^ForeverScribe · "), n .. " title " .. W.TocField(n, "Title"))
+		eq(W.TocField(n, "Version") ~= nil, true)
+	end
+	eq(W.TocField("ForeverScribe_Prices", "Title"), "ForeverScribe · Prices (data)")
+	eq(W.TocField("ForeverScribe", "Version"), "0.10.0"); eq(ForeverScribe and ForeverScribe.VERSION or "0.10.0", "0.10.0")
+	local toc = assert(io.open(ROOT .. "addon/ForeverScribe/ForeverScribe.toc")):read("*a")
+	truthy(toc:find("\nOptions.lua\n", 1, true) and toc:find("\nOptions.xml\n", 1, true), "Options files listed")
+end)
+
+test("options source: no protected calls; ReloadUI only inside the button's click handler", function()
+	local src = assert(io.open(ROOT .. "addon/ForeverScribe/Options.lua")):read("*a"):gsub("%-%-[^\n]*", "")
+	for _, bad in ipairs({ "SetCVar", "RunScript", "loadstring", "SendChatMessage", "hooksecurefunc", "SettingsPanel:Open",
+		"SettingsPanel.Open", "CastSpell", "BuyMerchantItem", "PlaceBid", "C_SettingsUtil" }) do
+		truthy(not src:find(bad, 1, true), "Options.lua uses " .. bad)
+	end
+	local _, n = src:gsub("ReloadUI%(%)", "")
+	eq(n, 1, "one ReloadUI() call")
+	truthy(src:find("function%(%)%s*ReloadUI%(%)%s*end"), "it is the click callback")
+end)
+
 
 if FIXTURES then
 	dofile(ROOT .. "tests/lua/wow_stub.lua")

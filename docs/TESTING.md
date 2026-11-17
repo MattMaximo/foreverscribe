@@ -6,7 +6,8 @@ About 15 minutes. You need WoW: Forever and an AI agent (Claude Desktop/Code, Co
 1. Give your agent this repo URL and say: "Set up ForeverScribe for me by following SETUP-FOR-AGENTS.md."
    Pick a mode when it asks: same computer (simplest), synced folder, direct push, or a relay (computers on different
    networks; your agent will ask for the relay URL and invite code).
-2. Fully quit and relaunch WoW. At character select → AddOns, tick **ForeverScribe** (leave ForeverScribe Live off).
+2. Fully quit and relaunch WoW. At character select → AddOns, tick **ForeverScribe** (scroll icon; its dropdown holds
+   "ForeverScribe · Prices (data)" and "ForeverScribe · Route 1–3", leave those ticked).
 3. Log in, type `/scribe status` (should show the version and `errors 0`), then `/reload`.
 
 ## In-game checks (do any you can, `/reload` at the end)
@@ -30,6 +31,13 @@ About 15 minutes. You need WoW: Forever and an AI agent (Claude Desktop/Code, Co
       within a few seconds (`foreverscribe relay status` says when the game computer last connected). Ask for a
       route: it should arrive in game within about 30 s (`/fs go`). Turn the agent computer off for a while, play,
       `/reload`, turn it back on: everything should still arrive.
+
+- [ ] 0.10 options: Esc → Options → AddOns → ForeverScribe opens a page (also `/scribe` alone, and the minimap's
+      addons button → ForeverScribe). Untick "AH prices in item tooltips": hovering an item shows no prices; tick it
+      and "Only while holding Shift": prices only with Shift. Untick "Craft cost & profit": the profession window
+      shows none. `/scribe tooltip on` while the page is open flips its box back. Status rows show the version, the
+      last save and the price age. "Save now" does a /reload.
+- [ ] 0.10 addon list: ForeverScribe shows a scroll icon (no "?"), its dropdown lists only Prices and Route 1–3.
 
 ## Ask your agent
 - "What level am I, where am I, and how fresh is your data?"

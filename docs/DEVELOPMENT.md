@@ -82,7 +82,7 @@ rows (a vendor's price for one unit of a crafting material; a material nobody li
 `addon/ForeverScribe/Craft.lua`. `data/vendor-prices.json` is rebuilt with `tools/build_vendor_prices.py <ItemSparse.csv>
 <wowhead-pages-dir>` (see its docstring).
 
-Route slots: `addon/ForeverScribe_Route01-10` ship with an empty `Route.lua`; never commit a written route there.
+Route slots: `addon/ForeverScribe_Route01-03` ship with an empty `Route.lua`; never commit a written route there.
 The slot file format is defined once in `foreverscribe/routes.py` (`render_lua`) and checked line by line by both
 sync agents (`ROUTE_LINE` / `$RouteLine`): change all three together. `tests/lua/route_e2e.lua` boots the simulated
 client against a slot folder for the Python tests.
