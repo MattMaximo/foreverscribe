@@ -69,8 +69,10 @@ def scan_text(text, where, words):
                 if label == "home folder" and m.group(1).lower().strip("<>") in PLACEHOLDER_USERS | {x.strip("<>") for x in PLACEHOLDER_USERS}:
                     continue
                 hits.append("%s:%d: %s: %s" % (where, n, label, m.group(0)))
+        # The repository's own public URL (install instructions need it) is not personal data.
+        plain = re.sub(r"github\.com/[A-Za-z0-9-]+/foreverscribe\b", "github.com/<repo>", line, flags=re.I)
         for w in words:
-            if re.search(r"(?<![A-Za-z0-9])" + re.escape(w) + r"(?![A-Za-z0-9'])", line, re.I):
+            if re.search(r"(?<![A-Za-z0-9])" + re.escape(w) + r"(?![A-Za-z0-9'])", plain, re.I):
                 hits.append("%s:%d: denylisted string #%d" % (where, n, words.index(w) + 1))
     return hits
 

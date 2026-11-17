@@ -10,9 +10,8 @@ a CLI (`foreverscribe summary`) and an **MCP server** (`foreverscribe mcp`) for 
 Codex, Hermes, or anything else that speaks MCP. No account, and nothing leaves your machines unless you set up a
 transport between your own computers. The optional hosted relay (0.9) only ever holds end-to-end encrypted files.
 
-> **Install:** give your AI agent (Claude, Codex, ChatGPT, Hermes, …) this repo's URL and say *"Set up ForeverScribe
-> for me."* It follows [`SETUP-FOR-AGENTS.md`](SETUP-FOR-AGENTS.md): works out where WoW and the agent run, picks the
-> right setup, configures it, and gives you at most one line to run on your game computer.
+> **Install:** tell your AI agent `install https://github.com/MattMaximo/foreverscribe`.
+> **Agents:** follow [`SETUP-FOR-AGENTS.md`](SETUP-FOR-AGENTS.md).
 
 ## How it fits together
 

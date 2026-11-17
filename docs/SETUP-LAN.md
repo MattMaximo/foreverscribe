@@ -13,7 +13,7 @@ Example: WoW on a Windows PC, the AI agent on a Mac mini, both on the same Wi-Fi
    If macOS asks whether Python may accept incoming connections, click **Allow**.
 5. Make a pairing code for the game PC: `bin/foreverscribe pair --name game-pc`. It prints the Windows install line.
    The code is a secret; send it privately.
-6. Connect your agent: follow `SETUP-FOR-AGENTS.md` step 5 (MCP), or just ask it to run `bin/foreverscribe summary`.
+6. Connect your agent: follow `SETUP-FOR-AGENTS.md` step 6 (MCP), or just ask it to run `bin/foreverscribe summary`.
 
 ## On the game PC (Windows)
 1. Download the Windows zip from the latest release (this repo → Releases → latest)

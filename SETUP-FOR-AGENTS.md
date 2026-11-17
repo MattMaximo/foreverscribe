@@ -1,162 +1,47 @@
-# Setup for agents — install and use ForeverScribe for your user
+# Install ForeverScribe (agents)
 
-You are an AI agent (Claude, Codex, ChatGPT, Hermes, …) helping a WoW: Forever player. Follow these steps in
-order. Ask the user only where marked **ASK**. Everything here is read-only towards the game, except the data-only
-route file `route write` puts into the ForeverScribe route slots (loaded only when the player presses `/fs go`).
+Goal: the user's WoW: Forever character data reaches you. Do every step yourself; the user only answers your
+questions and runs one line on the game computer. Needs Python 3.8+ (stdlib only).
+`FS` = `~/foreverscribe/bin/foreverscribe` (Windows `%USERPROFILE%\foreverscribe\bin\foreverscribe.cmd`).
 
-## 0. What you need, and which setup
-
-- Python 3.8+ on the agent computer (`python3 --version`; Windows: `py -3 --version`). Standard library only.
-- Figure out the setup yourself before asking: if a `World of Warcraft/_forever_` folder exists on the computer you
-  run on (macOS `/Applications/World of Warcraft/_forever_`; Windows `C:\Program Files*\World of Warcraft\_forever_`
-  or `FS setup --mode local` finds it), WoW is local. Then **ASK** only what you can't detect, in one message:
-  1. "Does World of Warcraft: Forever run on this computer?" (skip if you found it here)
-  2. If not: "Is the game computer Windows or Mac?"
-  3. If not: "Do you have a relay URL and invite code (from whoever shared ForeverScribe with you)?"
-- Pick the mode from the answers:
-
-| Situation | Mode | Steps for the user on the game computer |
-|---|---|---|
-| WoW on this computer | **A `local`** | none (install the addon here) |
-| WoW elsewhere, user has a relay URL + invite | **D `relay`** (recommended: works on any network, nothing to configure) | unzip kit, one install line |
-| WoW elsewhere, same home network, no relay | **C `http`** on the LAN (`docs/SETUP-LAN.md`) | unzip kit, one install line; allow the firewall prompt here |
-| WoW elsewhere, they already share Dropbox/iCloud/OneDrive | **B `folder`** | unzip kit, one install line |
-
-  Prefer D over C even on the same network when a relay is available: no IPs, firewall prompts or address changes.
-
-**Community relay.** The repo owner runs one at `https://thousand-truths-j6isf.ondigitalocean.app` (check
-`/v1/health`). Creating a pairing on it needs an invite code; the user gets it privately from the owner. Never put an
-invite code in a file, issue or chat log other than the user's own config. Anyone can host their own: `docs/RELAY.md`.
-
-## 1. Get the code (agent computer)
-
+## 1. Clone
 ```sh
-git clone <repo url> ~/foreverscribe        # Windows: git clone <repo url> %USERPROFILE%\foreverscribe
-cd ~/foreverscribe
-bin/foreverscribe version                    # Windows: bin\foreverscribe.cmd version
+git clone https://github.com/MattMaximo/foreverscribe ~/foreverscribe && FS version
 ```
 
-Below, `FS` means `~/foreverscribe/bin/foreverscribe` (Windows `%USERPROFILE%\foreverscribe\bin\foreverscribe.cmd`).
+## 2. Detect, then ask once
+WoW on this computer if `_forever_` exists (macOS `/Applications/World of Warcraft/_forever_`, Windows
+`C:\Program Files*\World of Warcraft\_forever_`). Otherwise ask in ONE message: game computer Windows or Mac?
+Relay invite code (from whoever shared this)? If no invite: same home network, or a shared Dropbox/iCloud/OneDrive folder?
 
-## 2. Configure (agent computer)
+## 3. Configure (one row)
+| Case | Do |
+|---|---|
+| WoW here | `FS setup --mode local`, then `installers/macos/install.sh --addon-only` (Windows: `powershell -ExecutionPolicy Bypass -File installers\windows\install.ps1 -AddonOnly`) |
+| Elsewhere + invite (default) | `FS setup --mode relay --relay-url https://thousand-truths-j6isf.ondigitalocean.app --relay-secret <invite>`; `FS relay pair --name game-pc` (prints the fs2 code); keep sync running: macOS `FS relay launchagent --write` + the `launchctl bootstrap` line it prints, Windows `FS relay task` |
+| Elsewhere, same network, no invite | `docs/SETUP-LAN.md` |
+| Elsewhere, shared folder | `FS setup --mode folder --folder "<path here>"` |
 
-Pick ONE mode:
+Own relay instead: `docs/RELAY.md`. Never create cloud accounts or spend money for the user.
+AH prices are opt-in (`config.example.toml` `[ah]`, `docs/PRICES.md`).
 
-**A. Same computer (`local`)**
-```sh
-FS setup --mode local                       # finds the _forever_ folder; else add --wow-dir "<...>/World of Warcraft/_forever_"
-```
-Then install the addon on this same computer: `installers/macos/install.sh --addon-only`
-(Windows: `powershell -ExecutionPolicy Bypass -File installers\windows\install.ps1 -AddonOnly`).
+## 4. Game computer (other-computer cases)
+Give the user the zip for their OS from https://github.com/MattMaximo/foreverscribe/releases/latest and ONE line,
+run inside the unzipped folder:
+- Windows (PowerShell): `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Pair <fs2 code>` (folder: `-Folder "<path there>"`)
+- macOS (Terminal): `./install.sh --pair <fs2 code>` (folder: `--folder "<path there>"`)
 
-**B. Different computers, synced folder (`folder`)** — no networking. **ASK** which synced folder service they use
-(iCloud Drive, Dropbox, OneDrive, Google Drive, Syncthing) and the folder path on *both* computers.
-```sh
-FS setup --mode folder --folder "<synced folder as seen on this computer>"
-```
+Then tell them: "Restart WoW, tick ForeverScribe and ForeverScribe prices under AddOns, log in, /reload."
 
-**C. Different computers, push over HTTP (`http`)** — fastest. Needs an address the game computer can reach:
-a LAN IP, a Tailscale/WireGuard IP, or the user's own tunnel URL (see `docs/TRANSPORTS.md`). **ASK** which.
-```sh
-FS setup --mode http --bind <this computer's LAN/Tailscale IP, or 127.0.0.1 behind a tunnel> [--public-url https://…]
-FS receiver                       # keep it running (macOS autostart: FS receiver launchagent --write, then load it)
-FS pair --name "<game PC name>"   # prints a one-line pairing code: a secret, give it only to the user
-```
+## 5. Verify
+`FS summary` shows the character. If not: `FS doctor`; relay: `FS relay status`; game-side log
+`~/Library/Application Support/ForeverScribe/sync.log` / `%LOCALAPPDATA%\ForeverScribe\sync.log`.
 
-**D. Different computers, different networks (`relay`)** — nothing to open or install on the network. Needs the URL
-of a ForeverScribe relay (`https://….ondigitalocean.app`) and, if it has one, its invite code (`RELAY_CREATE_SECRET`).
-**ASK** for both; whoever hosts the relay has them. No relay yet? Point the user to `docs/RELAY.md` (about 10 minutes
-in DigitalOcean, ~$5/month); never create cloud accounts or spend money for them.
-```sh
-FS setup --mode relay --relay-url https://<relay> [--relay-secret <invite code>]
-FS relay pair --name "<game PC name>"   # prints the fs2 code: a secret, give it only to the user
-FS relay launchagent --write            # macOS: keep `relay sync` running (then launchctl bootstrap …, as it prints)
-FS relay task                           # Windows: prints the Scheduled Task lines to run once
-```
+## 6. Connect and use
+- MCP: `<python3> -m foreverscribe mcp` with `PYTHONPATH=<repo>` (snippets: `docs/AGENT-SETUP.md`). No MCP: same names via the CLI.
+- Answering questions: add `skills/AGENT-INSTRUCTIONS.md` to your instructions.
 
-Optional: `--character "<Name>"` (default character), `--market forever.<normal|pvp|hardcore>.<alliance|horde>.<us|eu>`.
-AH prices stay off unless the user opts in (`config.example.toml` → `[ah]` explains why). If they do, run
-`FS prices write` once: item tooltips in game then show AH prices after the next login or `/reload` (http: the
-receiver keeps them fresh while the game computer's sync agent runs; local: run `FS prices watch` or schedule
-`FS prices write` every 30 min). Details: `docs/PRICES.md`.
-
-## 3. Install on the game computer (modes B, C and D)
-
-Download the kit from the latest GitHub release (repo → Releases → latest: `ForeverScribe-<ver>-windows.zip` or
-`-macos.zip`; or build it with `tools/build_dist.sh`). Give the user the zip link and exactly one line to run inside the
-unzipped folder:
-
-| Game computer | Mode B (folder) | Mode C (http) / D (relay) |
-|---|---|---|
-| macOS | `./install.sh --folder "<synced folder there>"` | `./install.sh --pair <fs1. or fs2. code>` |
-| Windows | `.\install.ps1 -Folder "<synced folder there>"` | `.\install.ps1 -Pair <fs1. or fs2. code>` |
-
-Windows: run from PowerShell with `powershell -ExecutionPolicy Bypass -File .\install.ps1 …`. Add `-DryRun`/`--dry-run`
-to preview. Uninstall: `./uninstall.sh` or `.\install.ps1 -Uninstall`. Optional: `--remind 30` / `-Remind 30`.
-
-## 4. First data
-
-Tell the user: "Fully quit and restart WoW, make sure ForeverScribe is enabled at character select, log in, type
-`/reload`." Then:
-
-```sh
-FS doctor      # every check OK?
-FS summary     # should show their character
-```
-
-No character yet? `FS doctor` lists the folders it reads. Mode C: check `FS receiver health`; mode D: `FS relay
-status` (when did the game computer last connect?) and that `FS relay sync` is running. Then the game-side log
-(`~/Library/Application Support/ForeverScribe/sync.log` or `%LOCALAPPDATA%\ForeverScribe\sync.log`).
-
-## 5. Connect yourself (MCP)
-
-Add the stdio MCP server to your own configuration. Exact snippets for Claude Desktop, Claude Code, Codex and
-Hermes: `docs/AGENT-SETUP.md`. The command is always:
-
-```
-<python3> -m foreverscribe mcp      with PYTHONPATH=<repo>     (or: <repo>/bin/foreverscribe mcp)
-```
-
-Verify by calling the `summary` tool. No MCP support? Use the CLI directly; every MCP tool is a CLI command.
-
-## 6. Using it (every answer)
-
-1. Call `summary` first, even for casual questions. It ingests new data, tells you how fresh it is, and lists
-   what happened since your last check. If data is STALE, say so and suggest a `/reload`.
-2. Use one focused (WARM) tool for the question: `quest`, `equipment`, `inventory`, `professions --recipes`,
-   `reputation`, `talents`, `mail`, `auctions`, `vendor`, `currencies`, `history`, `achievements`, `compare`, and
-   for "is this an upgrade / what to buy / what to craft": `gear`, `rate`, `craft`, `wowhead vendor <npcID>`.
-3. `cold` (addons, keybinds, action bars, macro names) only when the user asks about their UI setup.
-4. Never guess game state a tool can answer. Never recommend a quest without checking `quest <id>` first.
-5. A `wowhead` tool that prints `NEED web_extract(...)` wants one page: fetch that URL as markdown with your web
-   tool and pass it to `import_page` (CLI: `FS wowhead import-page <url> -` with the markdown on stdin), then retry.
-6. "Where is <NPC / object / place>?": call `waypoint` (CLI: `FS way <name> [zone words]`, `FS way npc=<id>`,
-   `FS way <x> <y> <zone>`). Answer with the zone and coordinates, the source and its freshness in one line, and the
-   **paste command in a code block** — exactly as the tool printed it (it already matches their addons:
-   `/scribe way …`, TomTom `/way …`, Polestar or Forever's native `/run …`). List other spawn spots or other matches
-   briefly. If it says not found or "no position", say so: never invent or estimate coordinates, and never take
-   coordinates from Classic/Retail sites yourself (Forever redrew Stormwind, Mulgore, Redridge and Eastern
-   Plaguelands; the tool converts Wowhead's old points). Details: `docs/WAYPOINTS.md`.
-   When the tool says "confirmed in game" (the player met that NPC; addon 0.5+) trust it over Wowhead and say so;
-   when it says "Wowhead's pin is ~X yd off", tell the user Wowhead is wrong there.
-7. "Which NPCs did I meet / where is Wowhead wrong?": `npcs` (`FS npcs`, `FS npcs --disagree`). The user wants to
-   share corrections: `FS npcs --export-shared` (no personal data) and help them open a pull request that merges it
-   into `data/npc-locations.json` (`FS npcs --merge data/npc-locations.json --from <file>`). Never upload anything
-   to Wowhead or elsewhere yourself.
-8. "Take me to A, then B, then C" (errands, trainers, a quest hub run): build a route, then write it once.
-   MCP `route`: `action=add` with `query` per stop (same lookup as `waypoint`; it refuses unknown positions), or
-   `action=add_stops` with stops you already resolved; `action=show` to check the order; `action=write`. CLI: `FS route
-   add <query>`, `FS route show`, `FS route write`. Then tell the user, in one line: "Press /fs go (or its key) in game;
-   the arrow moves to the next stop as you arrive, /fs next skips." Start a fresh route with `action=clear`. If they
-   say nothing happened: `FS route status` (http: shows whether the game computer fetched it; folder: wait for the
-   sync), and remind them `/fs go` loads at most 10 times per session (`/reload` resets; progress is kept). Never
-   press keys or `/reload` for them. Details and limits: `docs/ROUTES-AND-NPCS.md`.
-
-## 9. Rules you must keep
-
-- Read-only. Don't edit the addon to add automation, chat, network or protected calls; don't call `ReloadUI`.
-- The only writes towards the game are `route write` and `prices write`. Never hand-edit the route slot or price
-  files: the sync agent rejects anything that isn't exactly what the companion writes.
-- The pairing codes (`fs1.`, `fs2.`), `receiver-keys.json` and `<data dir>/relay/relay.json` are secrets. Don't post
-  them anywhere. A leaked fs2 code: `FS relay unpair`, `FS relay pair`, re-install the game side.
-- Don't commit the user's `config.toml`, data dir, SavedVariables or logs to any repository.
+## Rules
+- Read-only towards the game; only `route write` and `prices write` send files to it. Never press keys or `/reload` for the user.
+- Secrets: fs1./fs2. codes, invite codes, `<data dir>/relay/relay.json`, `receiver-keys.json`. Never post or commit them or the user's config/data.
+- Leaked fs2 code: `FS relay unpair`, `FS relay pair`, reinstall the game side.
