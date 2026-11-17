@@ -114,6 +114,16 @@ you asked for. Sources and the Stormwind/Mulgore map-redraw fix: [`docs/WAYPOINT
   plans flights and boats) when Polestar is loaded, else Forever's own pin and arrow. Polestar's API takes one target,
   so stops go one at a time; if its guide takes the arrow back, ForeverScribe says so once and `/fs go` re-points it.
 
+## Craft cost & profit in the profession window (0.8)
+
+Open a profession and select a recipe: a panel in the tooltip's style sits beside the window with **Cost to craft**
+(materials at their typical AH price, or the vendor's price where a vendor sells them cheaper: threads, dyes, spices,
+vials), **Sells for** (the crafted item's typical price × how many one craft makes) and **Profit** after the 5% AH cut
+(green or red). Hold **Shift** for each material: have/need, price each, AH or vendor. Hovering a recipe in the list
+shows the same numbers compactly. A number that can't be calculated is left out, never guessed (a bind-on-pickup
+result shows the cost only). `/scribe craftprices on|off`. Your agent gets the same list ranked:
+`foreverscribe craft --profit [profession]` (MCP tool `craft_profit`). Details: [`docs/PRICES.md`](docs/PRICES.md).
+
 ## AH prices in your tooltips (0.6)
 
 With AH prices on (`[ah]`, off by default), hover any item: an **Auction House** section shows the typical price on
@@ -151,7 +161,9 @@ an arrow to each stop, the next one set as you arrive. The agent writes the rout
 - **forever-db** by Polestar (https://github.com/fitzforge/polestar, `forever-db/`), release 2026.11.1: NPC and object
   spawn points. GPL-3.0 tables (with a CC BY 4.0 layer) — fetched at runtime and cached on your computer, never
   bundled in this repository. Credits and licences: [`NOTICE.md`](NOTICE.md).
-- **Wowhead Forever** tooltips and map pins (cached 7 days).
+- **Wowhead Forever** tooltips and map pins (cached 7 days); which crafting materials vendors sell.
+- **Forever's client item table** (ItemSparse, via wago.tools): vendor list prices in
+  [`data/vendor-prices.json`](data/vendor-prices.json).
 - **Your own sightings** and the shared [`data/npc-locations.json`](data/npc-locations.json).
 
 ## Repository layout

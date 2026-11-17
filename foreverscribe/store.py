@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS professions (
 CREATE TABLE IF NOT EXISTS recipes (
     char_key TEXT NOT NULL, profession TEXT NOT NULL, recipe_key TEXT NOT NULL, recipe_id INTEGER, name TEXT,
     difficulty INTEGER, skill_ups INTEGER, output_item INTEGER, reagents_json TEXT, scanned_at INTEGER,
-    PRIMARY KEY (char_key, profession, recipe_key)
+    output_qty INTEGER, PRIMARY KEY (char_key, profession, recipe_key)
 );
 CREATE TABLE IF NOT EXISTS flight_paths (
     char_key TEXT NOT NULL, name TEXT NOT NULL, node_id INTEGER, continent INTEGER, first_seen INTEGER,
@@ -212,6 +212,15 @@ def _store_npcs(con, char_key, npcs, now):
              int(_num(e.get("r"), 1, 200) or 5), _j(spots), now))
 
 
+def _migrate(con):
+    """Columns added after a table first shipped (CREATE TABLE IF NOT EXISTS never adds them)."""
+    cols = {r[1] for r in con.execute("PRAGMA table_info(recipes)")}
+    if "output_qty" not in cols:  # 0.8: how many items one craft makes (craft profit)
+        con.execute("ALTER TABLE recipes ADD COLUMN output_qty INTEGER")
+        # read the newest SavedVariables again once, so recipes captured before 0.8 get their quantity
+        con.execute("UPDATE ingest_runs SET status='ok-pre-0.8' WHERE status='ok' AND kind='sv'")
+
+
 def connect(path):
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     con = sqlite3.connect(path, timeout=30)
@@ -219,6 +228,7 @@ def connect(path):
     con.execute("PRAGMA journal_mode=WAL")
     con.execute("PRAGMA foreign_keys=ON")
     con.executescript(SCHEMA)
+    _migrate(con)
     con.execute("INSERT OR IGNORE INTO meta (key, value) VALUES ('schema', ?)", (str(SCHEMA_VERSION),))
     con.commit()
     return con
@@ -369,9 +379,10 @@ def _apply_current(con, char_key, c, snap, captured_at, now):
                 continue
             con.execute(
                 "INSERT OR REPLACE INTO recipes (char_key, profession, recipe_key, recipe_id, name, difficulty,"
-                " skill_ups, output_item, reagents_json, scanned_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                " skill_ups, output_item, reagents_json, scanned_at, output_qty) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (char_key, prof, str(rk), rk if isinstance(rk, int) else None, r.get("name"), r.get("difficulty"),
-                 r.get("skillUps"), r.get("output"), _j(_as_list(r.get("reagents"))), pr.get("scannedAt")))
+                 r.get("skillUps"), r.get("output"), _j(_as_list(r.get("reagents"))), pr.get("scannedAt"),
+                 r.get("qty") if isinstance(r.get("qty"), int) and r.get("qty") > 0 else None))
 
     for fname, fp in _as_dict(c.get("taxi")).items():
         if isinstance(fp, dict):

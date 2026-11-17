@@ -148,3 +148,17 @@ The route slot addons (`ForeverScribe_Route01-10`) contain only data the compani
 | `IsShiftKeyDown`, `MODIFIER_STATE_CHANGED`, `InCombatLockdown` | Shift details; refresh a chat-link tooltip outside combat | `InputDocumentation.lua`, `RestrictedActionsDocumentation.lua` |
 | `GetMoneyString`, `GetCoinTextureString`, `BreakUpLargeNumbers` | native coin formatting | `Blizzard_SharedXML/FormattingUtil.lua:72`, `CurrencyInfoDocumentation.lua`, `LocalizationDocumentation.lua` |
 | `tooltip:RefreshData()` | rebuild an unowned tooltip when Shift changes | `Blizzard_GameTooltip/Mainline/GameTooltip.lua:958` |
+
+## Craft cost & profit (0.8, `Craft.lua`) — reads only, stores one setting (`craftprices`)
+
+| API | Why | Evidence (Forever UI source) |
+|---|---|---|
+| `hooksecurefunc(ProfessionsFrame.CraftingPage.SchematicForm, "Init", fn)` | post-hook: the selected recipe (`recipeInfo.recipeID`) | `Blizzard_Professions/Blizzard_ProfessionsCrafting.xml:143`, `Blizzard_ProfessionsTemplates/Blizzard_ProfessionsRecipeSchematicForm.lua:361` |
+| `SchematicForm:GetRecipeInfo()` | the recipe already shown when the hook lands late | `Blizzard_ProfessionsRecipeSchematicForm.lua:1530` |
+| `EventRegistry:RegisterCallback("Professions.RecipeListOnEnter", fn, owner)` | compact numbers when hovering a recipe in the list | `Blizzard_ProfessionsTemplates/Blizzard_ProfessionsRecipeList.lua:395` |
+| `ADDON_LOADED("Blizzard_Professions")`, `TRADE_SKILL_SHOW` | the profession UI is load-on-demand: hook when it exists | `Blizzard_Professions.toc` (`LoadOnDemand: 1`), `TradeSkillUIDocumentation.lua` |
+| `C_TradeSkillUI.GetRecipeSchematic(recipeID, false)` | materials + product for a recipe the price file doesn't have yet | `TradeSkillUIDocumentation.lua:753`, `CraftingRecipeSchematic` in `TradeSkillUITypesDocumentation.lua:281` |
+| `C_Item.GetItemInfo` (bind type 1), `C_Item.GetItemNameByID`, `C_Item.GetItemCount(id, true, false, true)` | bind-on-pickup reason, material names, have/need | `ItemDocumentation.lua:846`, `:451`, `:626` |
+| `CreateFrame("GameTooltip", "ForeverScribeCraftTip", UIParent, "GameTooltipTemplate")` | our own panel beside the window; no Blizzard frame is changed | — |
+
+Never: `C_TradeSkillUI.CraftRecipe`, the Create / Create All buttons, buying materials, posting the result.

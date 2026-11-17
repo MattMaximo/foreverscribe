@@ -25,6 +25,9 @@ function TipMT:ClearLines()
 	for _, f in ipairs(self.hooks.OnTooltipCleared or {}) do f(self) end
 end
 function TipMT:RefreshData() W.refreshes = (W.refreshes or 0) + 1; W.HoverAgain(self) end
+function TipMT:SetOwner(o, anchor) self.owner = o; self.anchor = anchor; self.lines = {} end
+function TipMT:ClearAllPoints() self.points = {} end
+function TipMT:SetPoint(...) self.points = self.points or {}; table.insert(self.points, { ... }) end
 
 local function NewTip(name)
 	local t = setmetatable({ name = name, lines = {}, hooks = {}, shown = false }, TipMT)
@@ -36,6 +39,7 @@ local function NewTip(name)
 	end
 	return t
 end
+W.NewTip = NewTip
 
 function W.Reset()
 	baseReset()

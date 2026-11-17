@@ -29,6 +29,41 @@ know a recipe, or upgrade advice.
 `/scribe tooltip on|off|shift` — `shift` shows the section only while Shift is held. `/scribe tooltip` alone tells you
 which prices are loaded and how old they are.
 
+## Craft cost & profit in the profession window (0.8)
+
+Select a recipe in the profession window and a panel in the same style appears beside it:
+
+| Line | Meaning |
+|---|---|
+| **Auction House** · `PvP Alliance · 14m ago` | market and scan age, as in the tooltip |
+| **Cost to craft** | every material at its typical AH price, or the vendor's price where a vendor sells it cheaper |
+| **Sells for** (makes N) | the crafted item's typical AH price × how many one craft makes |
+| **Profit** | sells for − the AH cut − cost; green when positive, red when negative (larger font) |
+| After the 5% AH cut · Hold Shift for materials | |
+
+**Shift** lists each material: have/need (bags + bank; green when you have enough), the price of one, and where that
+price comes from (AH or vendor), then the AH cut in copper. Hovering a recipe in the list adds the same numbers,
+compactly, to its tooltip. `/scribe craftprices on|off`.
+
+Rules:
+- A line that can't be calculated is left out, never guessed. A material with no AH listings that no vendor sells
+  leaves out **Cost** and **Profit** ("1 material has no price"); a crafted item that binds when picked up, or that
+  nobody listed, leaves out **Sells for** and **Profit** (BoP: "Binds when picked up · can't be sold").
+- Vendor prices: the price your characters saw at a vendor (merchant capture, unlimited stock, money only) wins;
+  otherwise `data/vendor-prices.json` (game data: the client's list price for materials 50+ vendors sell). Limited-stock
+  sellers don't count.
+- The AH cut: the client has no API for it. The companion uses `[ah] cut` in `config.toml` if set, else the median rate
+  of your own AH sale invoices (captured when you open the mailbox), else 5% (Forever's faction auction houses).
+- Only the basic materials count (not optional or finishing reagents).
+- For recipes your characters know, the companion works the numbers out when it writes the price file
+  (`p[100000000 + recipeID]`), so selecting a recipe is one table lookup; a recipe learned since then is worked out in
+  game from the client's own recipe data, with the same rules. About 50 bytes per recipe (51 known recipes: +2.7 KB on
+  a 300 KB file).
+
+For your agent: `foreverscribe craft --profit [profession] [--limit N] [--all] [--json]` (MCP tool `craft_profit`)
+ranks the character's known recipes by profit right now, with the skill-up colour (orange/yellow/green raise the skill,
+gray doesn't) and why any recipe can't be priced.
+
 ## How the prices get there
 
 1. Your agent turns prices on (`[ah]` in `config.toml`: off by default, see `config.example.toml` for why) and runs

@@ -24,6 +24,7 @@ local LABEL = { 0.82, 0.82, 0.82 }
 local VALUE = { 1, 1, 1 }
 local DIM = { 0.55, 0.55, 0.55 }
 local GOOD, BAD, WARN = "ff4fd36b", "ffff5e57", "ffffc46b"
+T.COLORS = { GOLD = GOLD, LABEL = LABEL, VALUE = VALUE, DIM = DIM, GOOD = GOOD, BAD = BAD, WARN = WARN }
 
 local function color(hex, s) return "|c" .. hex .. s .. "|r" end
 local function up() return "|T" .. T.MEDIA .. "up:0|t" end
@@ -34,7 +35,7 @@ local function down() return "|T" .. T.MEDIA .. "down:0|t" end
 ---------------------------------------------------------------------------
 
 local P -- the validated price file (or nil)
-local rows, recipes = {}, {} -- memo: itemID -> parsed row | false
+local rows, recipes, buys = {}, {}, {} -- memo: itemID -> parsed row | false
 T.loadError = nil
 
 local function count(t, cap)
@@ -48,7 +49,7 @@ end
 
 -- Validates ForeverScribe_PriceData. Returns true when usable; T.loadError says why not.
 function T.Load(data)
-	P, rows, recipes, T.loadError = nil, {}, {}, nil
+	P, rows, recipes, buys, T.loadError = nil, {}, {}, {}, nil
 	data = data == nil and ForeverScribe_PriceData or data
 	if data == nil then T.loadError = "no price file"; return false end
 	if type(data) ~= "table" or type(data.d) ~= "table" then T.loadError = "bad price file"; return false end
@@ -74,7 +75,7 @@ local function nums(s)
 	return out
 end
 
--- {median, min, qty, d7, d30, other} or nil.
+-- {median, min, qty, d7, d30, other, buy} or nil (no AH listings). buy (0.8) = a vendor's price for one unit.
 function T.Row(itemID)
 	if not P or type(itemID) ~= "number" then return nil end
 	local r = rows[itemID]
@@ -82,7 +83,7 @@ function T.Row(itemID)
 		local s = P.d[itemID]
 		if type(s) == "string" and #s < 120 then
 			local n = nums(s)
-			r = { median = n[1], min = n[2], qty = n[3], d7 = n[4], d30 = n[5], other = n[6] }
+			r = { median = n[1], min = n[2], qty = n[3], d7 = n[4], d30 = n[5], other = n[6], buy = n[7] }
 			if not r.median then r = false end
 		else
 			r = false
@@ -90,6 +91,28 @@ function T.Row(itemID)
 		rows[itemID] = r
 	end
 	return r or nil
+end
+
+-- What a vendor charges for one unit of a crafting material (the 7th field of its row, 0.8), or nil. Works for
+-- materials nobody listed on the AH too (their row has only that field).
+function T.Buy(itemID)
+	if not P or type(itemID) ~= "number" then return nil end
+	local b = buys[itemID]
+	if b == nil then
+		local s = P.d[itemID]
+		b = type(s) == "string" and #s < 120 and nums(s)[7] or false
+		if b and b <= 0 then b = false end
+		buys[itemID] = b
+	end
+	return b or nil
+end
+
+-- The cheaper way to get one unit of a material: (copper, "AH" | "vendor"), or nil when neither has a price.
+function T.Unit(itemID)
+	local r, b = T.Row(itemID), T.Buy(itemID)
+	if b and (not r or b <= r.median) then return b, "vendor" end
+	if r then return r.median, "AH" end
+	return nil
 end
 
 -- {creates = itemID, mats = { {itemID, n}, ... }} for a recipe item, or nil.
@@ -254,8 +277,8 @@ function T.Lines(itemID, ctx)
 		add("Crafted item sells for", crafted and T.Money(crafted.median) or "—", nil, not crafted and DIM or nil)
 		local sum, missing = 0, 0
 		for _, m in ipairs(recipe.mats) do
-			local r = T.Row(m[1])
-			if r then sum = sum + r.median * m[2] else missing = missing + 1 end
+			local u = T.Unit(m[1]) -- AH typical, or the vendor's price where a vendor sells it cheaper
+			if u then sum = sum + u * m[2] else missing = missing + 1 end
 		end
 		if #recipe.mats > 0 then
 			local txt = sum > 0 and T.Money(sum) or "—"
@@ -378,6 +401,23 @@ local function wanted(tt)
 	return tt ~= nil and (tt == _G.GameTooltip or tt == _G.ItemRefTooltip)
 end
 
+-- Draw lines (T.Lines' shape) into any tooltip; the profession-window panel (Craft.lua) uses this too.
+function T.Draw(tt, lines)
+	for _, l in ipairs(lines) do
+		local lc, rc = l[3] or LABEL, l[4] or VALUE
+		if l[2] then
+			Try(tt.AddDoubleLine, tt, l[1], l[2], lc[1], lc[2], lc[3], rc[1], rc[2], rc[3])
+		else
+			Try(tt.AddLine, tt, l[1], lc[1], lc[2], lc[3])
+		end
+		if l.big then
+			local n = Try(tt.NumLines, tt)
+			if n then enlarge(tt, n) end
+		end
+	end
+end
+T.RestoreFonts = restoreFonts
+
 -- Adds our lines to `tt` for itemID. data = the tooltip's TooltipData (may be nil on the fallback hook).
 function T.Decorate(tt, itemID, data)
 	if not wanted(tt) then return end
@@ -407,18 +447,7 @@ function T.Decorate(tt, itemID, data)
 	if not lines then return end
 	local blank = Fn("GameTooltip_AddBlankLineToTooltip")
 	if blank then Try(blank, tt) else Try(tt.AddLine, tt, " ") end
-	for _, l in ipairs(lines) do
-		local lc, rc = l[3] or LABEL, l[4] or VALUE
-		if l[2] then
-			Try(tt.AddDoubleLine, tt, l[1], l[2], lc[1], lc[2], lc[3], rc[1], rc[2], rc[3])
-		else
-			Try(tt.AddLine, tt, l[1], lc[1], lc[2], lc[3])
-		end
-		if l.big then
-			local n = Try(tt.NumLines, tt)
-			if n then enlarge(tt, n) end
-		end
-	end
+	T.Draw(tt, lines)
 	last[tt] = { itemID, Try(tt.NumLines, tt) or 0 }
 end
 

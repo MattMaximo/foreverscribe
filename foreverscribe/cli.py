@@ -499,6 +499,7 @@ EPILOG = """more commands:
   foreverdb status|fetch|npc <id>       Polestar's open database (location source; fetched once, cached)
   route add|show|write|status ...       multi-stop route, walked in game with /fs go
   gear | rate <ids> | craft <ids> | aca | page <path>   Wowhead Forever, judged for the character
+  craft --profit [profession]           most profitable known recipes now: cost, sells for, profit after the AH cut
   wowhead <item|npc|quest|zone|spell|vendor|import-page|weights> ...   (see `foreverscribe wowhead`)
   ah <item> [...]                       auction-house prices (off unless enabled in config)
   prices write|status|watch             AH prices into the game's item tooltips (addon 0.6+, needs [ah] on)
@@ -567,6 +568,9 @@ def run_tool(argv):
     if cmd == "ah":
         from . import ah
         return ah.main(rest)
+    if cmd == "craft" and "--profit" in rest:
+        from . import crafting
+        return crafting.main(rest)
     if cmd in ("wowhead",) + WOWHEAD_ALIASES:
         from . import wowhead
         return wowhead.main(rest if cmd == "wowhead" else [cmd] + rest) or 0

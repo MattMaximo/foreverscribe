@@ -10,7 +10,7 @@ local FS = ForeverScribe
 local U = FS.Util
 local Try, Call, Clean, Sanitize = U.Try, U.Call, U.Clean, U.Sanitize
 
-FS.VERSION = "0.7.0"
+FS.VERSION = "0.8.0"
 FS.SCHEMA = 1
 FS.EVENT_CAP = 4000
 FS.SESSION_CAP = 200
@@ -1949,13 +1949,15 @@ function FS.Slash(msg)
 		if FS.Npcs then FS.Npcs.Command(arg) end
 	elseif cmd == "tooltip" or cmd == "prices" then
 		if FS.Tooltip then FS.Tooltip.Command(arg) else Print("the price tooltip needs ForeverScribe 0.6 (restart the game after updating)") end
+	elseif cmd == "craftprices" or cmd == "craft" then
+		if FS.Craft then FS.Craft.Command(arg) else Print("craft prices need ForeverScribe 0.8 (restart the game after updating)") end
 	elseif cmd == "guide" or cmd == "polestar" then
 		if FS.Guide then FS.Guide.Command() else Print("reading Polestar needs ForeverScribe 0.7 (restart the game after updating)") end
 	elseif cmd == "played" then
 		db.settings.played = (arg ~= "off")
 		Print("/played request at login " .. (db.settings.played and "on" or "off"))
 	else
-		Print("/scribe status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title] | go | next | back | route [clear] | npcs | tooltip on|off|shift | guide")
+		Print("/scribe status | last [n] | live on|off | snapshot | errors | played on|off | remind <min>|off | way <x> <y> [zone] [title] | go | next | back | route [clear] | npcs | tooltip on|off|shift | craftprices on|off | guide")
 	end
 end
 

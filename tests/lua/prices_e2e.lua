@@ -10,12 +10,19 @@ W.bags[0][5] = { itemID = 4305, count = 12 }
 W.Boot()
 local T = ForeverScribe.Tooltip
 local out = { loaded = T.Data() ~= nil, error = T.loadError or (not ok and tostring(err)) or nil, label = T.Data() and T.Data().label, lines = {} }
+-- r<recipeID>[s]: open the profession window, select that recipe, record the craft panel (0.8)
 for i = 2, #arg do
-	local id, shift = arg[i]:match("^(%d+)(s?)$")
+	local r, id, shift = arg[i]:match("^(r?)(%d+)(s?)$")
 	W.shift = shift == "s"
-	W.items[tonumber(id)] = W.items[tonumber(id)] or { name = "item " .. id, quality = 1, sell = 1 }
-	W.Hover(tonumber(id))
-	out.lines[arg[i]] = W.TipText()
+	id = tonumber(id)
+	if r == "r" then
+		W.OpenProfessions(); W.SelectRecipe(id)
+		out.lines[arg[i]] = W.PanelText() or {}
+	else
+		W.items[id] = W.items[id] or { name = "item " .. id, quality = 1, sell = 1 }
+		W.Hover(id)
+		out.lines[arg[i]] = W.TipText()
+	end
 end
 out.errors = ForeverScribe.errors or 0
 print(ForeverScribe.Util.JSON(out))

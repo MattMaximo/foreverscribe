@@ -22,6 +22,12 @@ its `corrections/npcs.json` / `objects.json` at commit f93a8ee.
 Tooltips and map pins are read from Wowhead's public tooltip service for WoW: Forever (cached 7 days). Wowhead is a
 trademark of its owner; ForeverScribe is not affiliated with it.
 
+## Vendor prices
+
+`data/vendor-prices.json` lists crafting materials that ordinary vendors sell and one unit's price. The prices are the
+game client's own item data (Forever's `ItemSparse` table, as exported by wago.tools); which items vendors sell comes
+from Wowhead Forever's item pages. Facts about the game, rebuilt with `tools/build_vendor_prices.py`.
+
 ## World of Warcraft
 
 World of Warcraft and Blizzard Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc.

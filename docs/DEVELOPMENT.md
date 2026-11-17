@@ -62,6 +62,13 @@ Price file: `addon/ForeverScribe_Prices/Prices.lua` ships empty (`build_dist.sh`
 `foreverscribe/prices.py` (`render_lua`, `LINE_RE`) and both sync agents (`PRICE_LINE` / `$PriceLine`): change all
 three together.
 
+Craft profit (0.8) adds to the same format 1, so older addons and sync agents accept the file: a 7th field on `d`
+rows (a vendor's price for one unit of a crafting material; a material nobody listed gets `",,,,,,<copper>"`), and
+`p[100000000 + recipeID] = "product,qty,cost,sells;reagent:n,..."` for every recipe the characters know, with
+`p[100000000]` = the AH cut in basis points. Written by `foreverscribe/crafting.py` (`price_file_rows`), read by
+`addon/ForeverScribe/Craft.lua`. `data/vendor-prices.json` is rebuilt with `tools/build_vendor_prices.py <ItemSparse.csv>
+<wowhead-pages-dir>` (see its docstring).
+
 Route slots: `addon/ForeverScribe_Route01-10` ship with an empty `Route.lua`; never commit a written route there.
 The slot file format is defined once in `foreverscribe/routes.py` (`render_lua`) and checked line by line by both
 sync agents (`ROUTE_LINE` / `$RouteLine`): change all three together. `tests/lua/route_e2e.lua` boots the simulated

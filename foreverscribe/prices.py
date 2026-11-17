@@ -39,6 +39,7 @@ PER_PAGE = 200
 MAX_PAGES = 80
 MAX_BYTES = 600 * 1024  # measured: ~6,500 items -> ~250 KB
 MAX_ITEMS = 20000  # the addon refuses bigger files too
+DEFAULT_CUT = 0.05  # the AH's cut of a sale (crafting.ah_cut finds the real one)
 REFRESH_SECONDS = 30 * 60
 PAGE_PAUSE = 0.3
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -181,19 +182,33 @@ def _field(v):
     return "" if v is None else str(int(v))
 
 
-def render_lua(snap, market, pats, now, max_bytes=MAX_BYTES):
-    """The data-only Lua file. Returns (text, stats). Items are dropped (fewest listed first) to stay under max_bytes."""
+CRAFT_BASE = 100000000  # p keys >= this are profession recipes (key - CRAFT_BASE = recipeID); CRAFT_BASE itself = AH cut
+
+
+def render_lua(snap, market, pats, now, max_bytes=MAX_BYTES, vendor=None, crafts=None, cut=None):
+    """The data-only Lua file. Returns (text, stats). Items are dropped (fewest listed first) to stay under max_bytes.
+
+    0.8 adds, in the same format 1 (so 0.6/0.7 sync agents and addons accept and ignore it):
+      d rows: a 7th field, the vendor price of one unit, for crafting materials a vendor sells (vendor: {id: copper});
+              a material no one listed gets a row with only that field (",,,,,,4").
+      p rows keyed CRAFT_BASE + recipeID: "product,qty,cost,sells;reagent:n,..." (crafts: {recipeID: row}); cost or
+              sells is empty when it can't be calculated. p[CRAFT_BASE] = the AH cut in basis points (500 = 5%)."""
     label, other = market_label(market, snap.get("label"))
     captured = _epoch(snap.get("capturedAt")) or int(now)
     items = snap.get("items") or {}
+    vendor = {int(k): int(v) for k, v in (vendor or {}).items() if int(v) > 0}
     rows = []
     for k, r in items.items():
         if not str(k).isdigit() or not isinstance(r, list) or len(r) < 6:
             continue
-        if all(x is None for x in r[:6]):
+        v = vendor.get(int(k))
+        if all(x is None for x in r[:6]) and not v:
             continue
-        body = ",".join(_field(x) for x in r[:6]).rstrip(",")
-        rows.append((int(k), body, r[2] or 0))
+        body = ",".join(_field(x) for x in list(r[:6]) + [v]).rstrip(",")
+        rows.append((int(k), body, (r[2] or 0) + (10 ** 9 if v else 0)))  # materials a craft needs survive a cap
+    for k, v in vendor.items():
+        if str(k) not in items:
+            rows.append((k, ",,,,,," + str(v), 10 ** 9))
     prows = []
     for k, v in sorted(pats.items(), key=lambda kv: int(kv[0])):
         if not str(k).isdigit() or str(k) not in items:
@@ -204,6 +219,13 @@ def render_lua(snap, market, pats, now, max_bytes=MAX_BYTES):
         except (TypeError, ValueError, IndexError):
             continue
         prows.append((int(k), "%d;%s" % (created, reag)))
+    ncraft = 0
+    if crafts:
+        prows.append((CRAFT_BASE, str(int(round((DEFAULT_CUT if cut is None else cut) * 10000)))))
+        for rid, row in sorted(crafts.items()):
+            if 0 < int(rid) < CRAFT_BASE and re.match(r"^[0-9,:;]*$", row) and len(row) < 300:
+                prows.append((CRAFT_BASE + int(rid), row))
+                ncraft += 1
     rows.sort(key=lambda x: (-x[2], x[0]))  # most listed first: those survive a cap
     rows = rows[:MAX_ITEMS]
     rev_src = json.dumps([snap.get("capturedAt"), market, rows, prows], sort_keys=True)
@@ -238,8 +260,25 @@ def render_lua(snap, market, pats, now, max_bytes=MAX_BYTES):
         cut = min(len(rows), int(over / per_row) + 1)
         rows, dropped = rows[:-cut], dropped + cut
         text = build(rows)
-    return text, {"rev": rev, "items": len(rows), "patterns": len(prows), "bytes": len(text.encode()), "dropped": dropped,
-                  "captured": captured, "label": label, "market": market}
+    return text, {"rev": rev, "items": len(rows), "patterns": len(prows) - ncraft - (1 if crafts else 0), "crafts": ncraft,
+                  "vendor": len(vendor), "bytes": len(text.encode()), "dropped": dropped, "captured": captured,
+                  "label": label, "market": market}
+
+
+def craft_data(cfg, items):
+    """(vendor prices of the materials, {recipeID: row}, AH cut) for every recipe the characters know (addon 0.8:
+    craft cost and profit in the profession window). Read-only on the store; never fails the price write."""
+    try:
+        from . import crafting, store
+        if not os.path.isfile(cfg.db):
+            return {}, {}, None
+        con = store.connect(cfg.db)
+        try:
+            return crafting.price_file_rows(con, items, cfg)
+        finally:
+            con.close()
+    except Exception:
+        return {}, {}, None
 
 
 def valid(text):
@@ -305,7 +344,8 @@ def write(cfg=None, want="auto", market=None, force=False, now=None, log=None):
     snap, fresh = fetch_market(s, market, cfg, force=force, log=log)
     now = int(now or time.time())
     ids = [k for k, r in (snap.get("items") or {}).items() if isinstance(r, list) and len(r) > 6 and r[6]]
-    text, st = render_lua(snap, market, patterns(cfg, ids), now)
+    vendor, crafts, cut = craft_data(cfg, snap.get("items") or {})
+    text, st = render_lua(snap, market, patterns(cfg, ids), now, vendor=vendor, crafts=crafts, cut=cut)
     if not valid(text):
         raise ValueError("internal: price file failed its own validation")
     prev = (_read_json(os.path.join(price_dir(cfg), "written.json")) or {})

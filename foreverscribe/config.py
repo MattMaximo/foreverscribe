@@ -34,7 +34,7 @@ DEFAULTS = {
                  "keys_file": "", "max_skew_seconds": 600},
     "pull": {"ssh_host": "", "ssh_command": "ssh -o BatchMode=yes -o ConnectTimeout=8", "remote_account_dir": ""},
     "sync": {"extra_saved_variables": ["ForeverForge*.lua", "Polestar.lua"]},
-    "ah": {"enabled": False, "wowgg_key": "", "market": ""},
+    "ah": {"enabled": False, "wowgg_key": "", "market": "", "cut": ""},
     "wowhead": {"cache_dir": "", "page_dir": "", "extra_page_dirs": []},
     "summary": {"max_lines": 40},
 }

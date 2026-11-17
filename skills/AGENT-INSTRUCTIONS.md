@@ -40,6 +40,13 @@ Never submit anything for them.
 Call `guide`: their Polestar guide, step N of M, the step's open goals, and Polestar's arrow target. Answer from that
 step; don't contradict the guide without saying why.
 
+## "What should I craft?" / "Is this recipe worth it?"
+
+Call `craft_profit` (optionally with a profession): their known recipes ranked by profit after the AH cut, each with
+its skill-up colour (orange/yellow/green raise the skill, gray doesn't). Answer with the top few as "name: cost →
+sells for = profit". Recipes it lists under "Can't price" have no profit number (bind on pickup, no listings, a
+material with no price): say why, never estimate one. In game the profession window shows the same numbers.
+
 ## Routes
 
 `route` with action=add (query per stop, resolved like `waypoint`) or add_stops (stops you resolved), then

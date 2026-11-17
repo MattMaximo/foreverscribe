@@ -102,6 +102,15 @@ TOOLS = {
     "craft": ("Crafted item vs worn, skill gate, mats have/need, AH cost (recipe item ids).",
               _obj({"items": {"type": "array", "items": {"type": ["string", "integer"]}}}, ["items"]),
               lambda a: ["craft"] + [str(x) for x in a["items"]]),
+    "craft_profit": ("Most profitable crafts for the character right now: every known recipe with its skill-up colour "
+                     "(orange/yellow/green raise the skill, gray doesn't), cost to craft (AH typical price, or the vendor's "
+                     "price where cheaper), sells for (crafted item's AH typical x number made), and profit after the AH "
+                     "cut. Recipes it can't price are listed with the reason (bind on pickup, no listings, a material with "
+                     "no price); never guess those numbers. Needs [ah] prices on.",
+                     _obj({"profession": _s("e.g. Tailoring, Cooking (default: all)"),
+                           "limit": {"type": "integer", "description": "how many to list (default 15)"}}),
+                     lambda a: ["craft", "--profit"] + ([str(a["profession"])] if a.get("profession") else [])
+                     + (["--limit", str(a["limit"])] if a.get("limit") else [])),
     "wowhead": ("Wowhead Forever lookup: item|npc|quest|zone|spell <id>, vendor <npcID>, aca, page <path> [--rate]. "
                 "If it prints NEED, fetch that URL as markdown and pass it to import_page.",
                 _obj({"args": {"type": "array", "items": {"type": "string"}}}, ["args"]), lambda a: ["wowhead"] + list(a["args"])),
@@ -184,7 +193,9 @@ def call_tool(name, args):
         rc, text = run_cli(["wowhead", "import-page", args["url"], "-"], stdin_text=args["markdown"])
     else:
         argv = TOOLS[name][2](args)
-        if args.get("character") and name in ("gear", "rate", "craft", "wowhead", "waypoint", "npcs", "route"):
+        if args.get("character") and name == "craft_profit":
+            argv = argv + ["--char", args["character"]]
+        elif args.get("character") and name in ("gear", "rate", "craft", "wowhead", "waypoint", "npcs", "route"):
             argv = argv[:1] + ["--for", args["character"]] + argv[1:]
         elif args.get("character") and name not in NO_CHAR:
             argv = ["--char", args["character"]] + argv

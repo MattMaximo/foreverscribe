@@ -70,6 +70,8 @@ remote_account_dir = "/Applications/World of Warcraft/_forever_/WTF/Account"
 enabled = false
 wowgg_key = ""
 market = ""
+# The AH's cut of a sale for craft profit (percent). Empty = the rate your own AH sale invoices show, else 5.
+cut = ""
 
 [wowhead]
 # Wowhead Forever cache (tooltips, parsed pages). Default <data_dir>/wowhead-cache.
