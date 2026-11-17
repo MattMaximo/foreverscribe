@@ -11,6 +11,9 @@ About 15 minutes. You need WoW: Forever and an AI agent (Claude Desktop/Code, Co
 ## In-game checks (do any you can, `/reload` at the end)
 - [ ] Loot something, move an item between bags, equip an item.
 - [ ] Turn in a quest; gain a profession skill point; open each profession window once.
+- [ ] 0.8.2: open each profession while alive (once with only ForeverScribe enabled): recipes load and the recipe pane
+      shows Cost to craft / Sells for / Profit under Reagents. As a ghost, click a profession tab: the empty window
+      says you can't use professions while dead.
 - [ ] Open your Reputation and Talents windows; open a flight master map.
 - [ ] Walk into a new zone (stay 20 s) and back across a border.
 - [ ] Open a vendor; open the auction house (and the mailbox if you have mail).

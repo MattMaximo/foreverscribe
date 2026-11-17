@@ -182,19 +182,16 @@ class PriceFile(Sandbox):
         path = os.path.join(self.t, "Prices.lua")
         with open(path, "w") as f:
             f.write(text)
-        r = subprocess.run([LUA, os.path.join(ROOT, "tests", "lua", "prices_e2e.lua"), path, "r7892", "r253886", "r3915s"],
+        r = subprocess.run([LUA, os.path.join(ROOT, "tests", "lua", "prices_e2e.lua"), path, "r7892", "r253886"],
                            capture_output=True, text=True, cwd=ROOT)
         out = json.loads(r.stdout.strip().splitlines()[-1])
         self.assertTrue(out["loaded"], out)
         e = K.evaluate(6385, 1, [(2997, 4), (2605, 2), (4340, 1), (2321, 1)], ITEMS, VENDOR)
         shirt = out["lines"]["r7892"]
-        self.assertIn("Cost to craft | %s" % K.money(e["cost"]).replace("g ", "g ").strip(), shirt)
-        self.assertIn("Sells for | 74s 90c", shirt)
-        self.assertIn("Profit | +" + K.money(e["profit"]), shirt)
+        self.assertEqual(shirt, ["Cost to craft: %s" % K.money(e["cost"]), "Sells for: 74s 90c",
+                                 "Profit: +%s · after 5%% AH cut" % K.money(e["profit"])])
         sash = out["lines"]["r253886"]
-        self.assertIn("Cost to craft | 6s 76c", sash)
-        self.assertFalse([x for x in sash if x.startswith(("Sells for", "Profit"))], sash)
-        self.assertIn("Coarse Thread  0/1 | 10c each · vendor", out["lines"]["r3915s"])
+        self.assertEqual(sash, ["Cost to craft: 6s 76c"])
         self.assertEqual(out["errors"], 0)
 
 

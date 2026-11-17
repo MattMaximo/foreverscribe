@@ -151,14 +151,19 @@ The route slot addons (`ForeverScribe_Route01-10`) contain only data the compani
 
 ## Craft cost & profit (0.8, `Craft.lua`) — reads only, stores one setting (`craftprices`)
 
+No hooks, callbacks or scripts on any Blizzard frame (since 0.8.1, as a precaution). On Blizzard's profession frames
+ForeverScribe only calls getters; `tests/lua/test_addon.lua` "do-not-touch" fails on any write or other call.
+
 | API | Why | Evidence (Forever UI source) |
 |---|---|---|
-| `hooksecurefunc(ProfessionsFrame.CraftingPage.SchematicForm, "Init", fn)` | post-hook: the selected recipe (`recipeInfo.recipeID`) | `Blizzard_Professions/Blizzard_ProfessionsCrafting.xml:143`, `Blizzard_ProfessionsTemplates/Blizzard_ProfessionsRecipeSchematicForm.lua:361` |
-| `SchematicForm:GetRecipeInfo()` | the recipe already shown when the hook lands late | `Blizzard_ProfessionsRecipeSchematicForm.lua:1530` |
-| `EventRegistry:RegisterCallback("Professions.RecipeListOnEnter", fn, owner)` | compact numbers when hovering a recipe in the list | `Blizzard_ProfessionsTemplates/Blizzard_ProfessionsRecipeList.lua:395` |
-| `ADDON_LOADED("Blizzard_Professions")`, `TRADE_SKILL_SHOW` | the profession UI is load-on-demand: hook when it exists | `Blizzard_Professions.toc` (`LoadOnDemand: 1`), `TradeSkillUIDocumentation.lua` |
+| `ProfessionsFrame:IsShown()`, `.CraftingPage:IsShown()`, `.CraftingPage.SchematicForm:GetRecipeInfo()` | polled 4×/s by our own frame, only while the window is open: the selected recipe | `Blizzard_Professions/Blizzard_ProfessionsCrafting.xml:143`, `Blizzard_ProfessionsTemplates/Blizzard_ProfessionsRecipeSchematicForm.lua:1530` |
+| `SchematicForm.Reagents` / `.OptionalReagents` `:IsShown()`, `:GetBottom()`; `SchematicForm:GetBottom()` | where the reagent list ends: our lines go under it, or in the corner left of Track Recipe | `Blizzard_ProfessionsRecipeSchematicForm.xml:66–82`, `.lua:1274–1305`; Track Recipe at the form's bottom right (`Camelot/Blizzard_ProfessionsCrafting.lua` `OverrideArt`) |
+| `ProfessionsFrame:GetFrameStrata()`, `:GetFrameLevel()` | our frames draw just above the window | — |
+| `C_TradeSkillUI.GetChildProfessionInfo()`, `GetBaseProfessionInfo()` (`professionID`), `TRADE_SKILL_SHOW` / `TRADE_SKILL_CLOSE` | did a profession actually open (Blizzard's own test: `professionID == 0` → nothing loaded) | `Blizzard_ProfessionsFrame.lua:284`, `Blizzard_ProfessionsTemplates/Blizzard_Professions.lua:1665` |
+| `UnitIsDeadOrGhost("player")` | which message the empty window gets | `UnitDocumentation.lua:1931` |
+| `ADDON_LOADED("Blizzard_Professions")`, `PLAYER_LOGIN` | start the watcher (the profession UI is load-on-demand) | `Blizzard_Professions.toc` (`LoadOnDemand: 1`) |
 | `C_TradeSkillUI.GetRecipeSchematic(recipeID, false)` | materials + product for a recipe the price file doesn't have yet | `TradeSkillUIDocumentation.lua:753`, `CraftingRecipeSchematic` in `TradeSkillUITypesDocumentation.lua:281` |
-| `C_Item.GetItemInfo` (bind type 1), `C_Item.GetItemNameByID`, `C_Item.GetItemCount(id, true, false, true)` | bind-on-pickup reason, material names, have/need | `ItemDocumentation.lua:846`, `:451`, `:626` |
-| `CreateFrame("GameTooltip", "ForeverScribeCraftTip", UIParent, "GameTooltipTemplate")` | our own panel beside the window; no Blizzard frame is changed | — |
+| `C_Item.GetItemInfo` (bind type 1) | bind on pickup: no Sells for / Profit | `ItemDocumentation.lua:846` |
+| `CreateFrame("Frame", "ForeverScribeCraftNumbers" / "ForeverScribeCraftNotice", UIParent)` + `CreateFontString` (`GameFontNormalSmall`, `GameFontHighlightSmall`, `GameFontDisableSmall`, `GameFontNormalLarge`, `GameFontHighlight`) | our own frames, anchored to the window; no Blizzard frame is changed | `Blizzard_Fonts_Shared/Shared/FontStyles.xml` |
 
-Never: `C_TradeSkillUI.CraftRecipe`, the Create / Create All buttons, buying materials, posting the result.
+Never: `C_TradeSkillUI.CraftRecipe`, the Create / Create All buttons, casting the profession spell, switching the window's page, buying materials, posting the result.

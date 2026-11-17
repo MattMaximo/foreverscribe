@@ -1298,19 +1298,58 @@ local function panel() return W.PanelText() or {} end
 local function openAt(rid)
 	W.OpenProfessions(); W.SelectRecipe(rid); return panel()
 end
+local function box() return ForeverScribeCraftNumbers end
 
-test("v8 selected recipe with a profit: header, cost, sells for, green profit, cut + shift hint", function()
+test("v8.2 selected recipe: cost, sells for, green profit with a small grey cut note, written into the detail pane", function()
 	W.CraftPrices(); W.Boot()
 	local l = openAt(7892) -- Stylish Green Shirt: precomputed cost 27s 30c, sells 74s 90c
-	local want = { "Auction House | PvP Alliance · 14m ago", "Cost to craft | 27s 30c", "Sells for | 74s 90c",
-		"Profit | +43s 85c", "After the 5% AH cut · Hold Shift for materials" }
+	local want = { "Cost to craft: 27s 30c", "Sells for: 74s 90c", "Profit: +43s 85c · after 5% AH cut" }
 	eq(#l, #want, show(l))
 	for i, w in ipairs(want) do eq(l[i], w, show(l)) end
-	local tipf = ForeverScribeCraftTip
-	eq(tipf.lines[1].left, "Stylish Green Shirt", "title = the crafted item")
-	local profit = tipf.lines[5]
-	truthy(profit.right:find("|cff4fd36b", 1, true), "profit is green: " .. profit.right)
-	eq(tipf.points[1][1], "BOTTOMLEFT"); eq(tipf.points[1][2], ProfessionsFrame, "anchored beside the profession window")
+	local f = box()
+	eq(f.rows[1].label.font, "GameFontNormalSmall", "gold label like Blizzard's \"Reagents:\"")
+	eq(f.rows[1].value.font, "GameFontHighlightSmall", "white value")
+	eq(f.rows[3].note.font, "GameFontDisableSmall", "grey note")
+	truthy(f.rows[1].value.text:find("|T", 1, true), "coin icons: " .. f.rows[1].value.text)
+	truthy(f.rows[3].value.text:find("|cff4fd36b", 1, true), "profit is green: " .. f.rows[3].value.text)
+	-- placed under Blizzard's reagent list, drawn just above the window, not parented to it
+	local pt = f.points[1]
+	eq(pt[1], "TOPLEFT"); eq(pt[2], ProfessionsFrame.CraftingPage.SchematicForm.Reagents); eq(pt[3], "BOTTOMLEFT")
+	eq(f.strata, "MEDIUM"); truthy(f.level > 10, "above the window")
+	eq(GameTooltip.shown, false, "no tooltip panel any more")
+	eq(rawget(_G, "ForeverScribeCraftTip"), nil, "the 0.8.0/0.8.1 tooltip panel is gone")
+	eq(FS().errors or 0, 0, tostring(FS().lastError))
+end)
+
+test("v8.2 placement: 1 reagent and 8 reagents stay under the list and above Track Recipe; no room -> corner, never over reagents", function()
+	W.CraftPrices(); W.Boot()
+	local function bottomOf(f) -- our block's bottom in the stub's screen units
+		local pt = f.points[1]
+		if pt[1] == "TOPLEFT" then return pt[2]:GetBottom() + pt[5] - f.n * 15 end
+		return W.FORM_BOTTOM + pt[5]
+	end
+	local function check(n, what)
+		W.SelectRecipe(7892, n)
+		local l = panel(); eq(#l, 3, what .. show(l))
+		local f = box()
+		eq(f.points[1][2], ProfessionsFrame.CraftingPage.SchematicForm.Reagents, what .. ": under the reagents")
+		truthy(bottomOf(f) >= W.FORM_BOTTOM + 37, what .. ": above the Track Recipe row (" .. bottomOf(f) .. ")")
+	end
+	W.OpenProfessions()
+	check(1, "1 reagent"); check(6, "6 reagents"); check(8, "8 reagents")
+	-- optional reagents shown: under those instead
+	W.SelectRecipe(3915, 2, 2)
+	eq(box().points[1][2], ProfessionsFrame.CraftingPage.SchematicForm.OptionalReagents, "under the optional reagents")
+	-- a long description pushes the list down: bottom-left corner beside Track Recipe, without the grey note
+	W.descExtra = 40
+	W.SelectRecipe(7892, 8)
+	local l = panel()
+	eq(box().points[1][1], "BOTTOMLEFT"); eq(box().points[1][2], ProfessionsFrame.CraftingPage.SchematicForm)
+	eq(l[3], "Profit: +43s 85c", "no note in the corner: " .. show(l))
+	-- even less room: nothing, rather than covering the reagents
+	W.descExtra = 80
+	W.SelectRecipe(7892, 8)
+	eq(W.PanelText(), nil, "hidden when it would overlap")
 	eq(FS().errors or 0, 0, tostring(FS().lastError))
 end)
 
@@ -1320,41 +1359,41 @@ test("v8 a loss is red and signed; the cut comes from the price file", function(
 	d.p[100000000 + 3915] = "4344,1,95,100;2996:1,2320:1"
 	W.Boot()
 	local l = openAt(3915)
-	truthy(has(l, "Profit | -5c"), show(l)) -- 100 - 10 cut - 95 cost
-	truthy(has(l, "After the 10% AH cut · Hold Shift for materials"), show(l))
-	truthy(ForeverScribeCraftTip.lines[5].right:find("|cffff5e57", 1, true), "loss is red")
+	truthy(has(l, "Profit: -5c · after 10% AH cut"), show(l)) -- 100 - 10 cut - 95 cost
+	truthy(box().rows[3].value.text:find("|cffff5e57", 1, true), "loss is red")
 end)
 
-test("v8 a material with no price leaves out cost and profit (never a guess)", function()
+test("v8 a material with no price leaves out cost and profit (never a guess, no reason lines)", function()
 	W.CraftPrices(); W.Boot()
 	W.items[253885].bind = 0 -- even when the result could be sold
-	ForeverScribe_PriceData.d[253885] = "9000,8000,2,9000,9000"
+	ForeverScribe_PriceData.p[100000000 + 253886] = "253885,1,,9000;2996:8,2321:2,2455:2"
 	ForeverScribe.Tooltip.Load()
 	local l = openAt(253886)
-	for _, s in ipairs(l) do
-		truthy(not s:find("^Cost to craft") and not s:find("^Profit"), "no cost/profit: " .. show(l))
-	end
-	truthy(has(l, "1 material has no price"), show(l))
+	eq(#l, 1, show(l)); eq(l[1], "Sells for: 90s", show(l))
 end)
 
-test("v8 bind-on-pickup product: cost only, the reason instead of sells for / profit", function()
+test("v8 bind-on-pickup product: cost only", function()
 	W.CraftPrices({}); W.Boot()
 	ForeverScribe_PriceData.p[100000000 + 253886] = "253885,1,830,;2996:8,2321:2"
 	ForeverScribe.Tooltip.Load()
 	local l = openAt(253886)
-	truthy(has(l, "Cost to craft | 8s 30c"), show(l))
-	truthy(has(l, "Binds when picked up · can't be sold"), show(l))
-	for _, s in ipairs(l) do truthy(not s:find("^Sells for") and not s:find("^Profit"), show(l)) end
+	eq(#l, 1, show(l)); eq(l[1], "Cost to craft: 8s 30c", show(l))
 end)
 
-test("v8 Shift: per-material have/need, unit price and source (vendor where cheaper), AH cut", function()
+test("v8.2 nothing computable: no block at all", function()
+	W.CraftPrices({}); W.Boot()
+	ForeverScribe_PriceData.p[100000000 + 253886] = "253885,1,,;2996:8,2321:2,2455:2"
+	ForeverScribe.Tooltip.Load()
+	eq(#openAt(253886), 0)
+	eq(box().shown, false)
+end)
+
+test("v8.2 no Shift breakdown: holding Shift changes nothing", function()
 	W.CraftPrices(); W.Boot(); W.shift = true
 	W.bags[0][6] = { itemID = 2996, count = 3 }
-	local l = openAt(3915) -- Brown Linen Shirt: 1 Bolt of Linen Cloth (AH 62c) + 1 Coarse Thread (vendor 10c < AH 15c)
-	truthy(has(l, "Bolt of Linen Cloth  3/1 | 62c each · AH"), show(l))
-	truthy(has(l, "Coarse Thread  0/1 | 10c each · vendor"), show(l))
-	truthy(has(l, "AH cut (5%) | 5c"), show(l))
-	truthy(not has(l, "After the 5% AH cut · Hold Shift for materials"), "no hint while Shift is held")
+	local l = openAt(3915)
+	eq(#l, 3, show(l))
+	for _, s in ipairs(l) do truthy(not s:find("each", 1, true) and not s:find("AH cut (", 1, true), show(l)) end
 end)
 
 test("v8 a recipe the companion didn't precompute is read from the client's schematic", function()
@@ -1364,55 +1403,126 @@ test("v8 a recipe the companion didn't precompute is read from the client's sche
 	ForeverScribe_PriceData.d[6889] = "159,150,20,160,160"
 	ForeverScribe.Tooltip.Load()
 	local l = openAt(6413)
-	truthy(has(l, "Cost to craft | 1s 61c"), show(l)) -- 159 egg + 2c vendor-only spice
-	truthy(has(l, "Sells for | 50c"), show(l))
-	truthy(has(l, "Profit | -1s 14c"), show(l)) -- 50 - 3 (5% cut of 50c, half up) - 161
+	truthy(has(l, "Cost to craft: 1s 61c"), show(l)) -- 159 egg + 2c vendor-only spice
+	truthy(has(l, "Sells for: 50c"), show(l))
+	truthy(has(l, "Profit: -1s 14c · after 5% AH cut"), show(l)) -- 50 - 3 (5% cut of 50c, half up) - 161
 end)
 
-test("v8 off hides the panel; hovering the list never touches Blizzard's tooltip path (no taint)", function()
+test("v8.2 a craft that makes several says so", function()
+	W.CraftPrices(); W.Boot()
+	ForeverScribe_PriceData.p[100000000 + 3915] = "4344,5,72,500;2996:1,2320:1"
+	ForeverScribe.Tooltip.Load()
+	truthy(has(openAt(3915), "Sells for (makes 5): 5s"), show(panel()))
+end)
+
+test("v8 off hides the numbers; switching recipes and closing the window hide or redraw them", function()
 	W.CraftPrices(); W.Boot(); W.OpenProfessions()
-	W.HoverRecipe(7892); eq(#GameTooltip.lines, 0, "0.8.1: no EventRegistry callback into the profession list")
 	ForeverScribe.Slash("craftprices off")
 	eq(ForeverScribeDB.settings.craftprices, "off")
 	W.SelectRecipe(7892)
-	eq(W.PanelText(), nil, "panel hidden when off")
+	eq(W.PanelText(), nil, "hidden when off")
 	ForeverScribe.Slash("craftprices on"); W.SelectRecipe(7892)
-	truthy(W.PanelText(), "back on")
-	ProfessionsFrame:Hide(); eq(W.PanelText(), nil, "closing the window hides the panel")
+	truthy(has(panel(), "Cost to craft: 27s 30c"), "back on")
+	W.SelectRecipe(3915)
+	truthy(has(panel(), "Cost to craft: 72c"), "redrawn for the new recipe: " .. show(panel()))
+	W.CloseProfessions(); eq(W.PanelText(), nil, "closing the window hides the numbers")
 end)
 
-test("v8.1 no hooks into Blizzard_Professions (Forever secret values break on tainted paths)", function()
-	W.CraftPrices(); W.Boot(); W.OpenProfessions()
-	local form = ProfessionsFrame.CraftingPage.SchematicForm
-	eq(type(form.Init), "function")
+test("v8.2 dead/ghost: unloaded crafting page -> no numbers, a clear message, no errors, no recipe scan", function()
+	W.CraftPrices(); W.Boot()
+	W.dead = true
+	W.OpenProfessionsFailed()
+	W.TickUpdates(0.5)
+	eq(W.NoticeText(), nil, "not while the cast may still be landing")
+	W.TickUpdates(0.5); W.TickUpdates(0.5); W.TickUpdates(0.5)
+	eq(W.NoticeText(), "You can't use professions while dead. Resurrect, then open it again.")
+	eq(W.PanelText(), nil, "no numbers")
+	local n = ForeverScribeCraftNotice
+	eq(n.points[1][1], "CENTER"); eq(n.points[1][2], ProfessionsFrame.CraftingPage, "centred in the empty page")
+	eq(n.title.font, "GameFontNormalLarge"); eq(n.body.font, "GameFontHighlight")
+	W.Advance(3)
+	eq(C().recipes, nil, "no recipe scan (no profession opened)")
+	-- resurrected while the message is up: tell them to reopen (we never cast or switch pages)
+	W.dead = false; W.TickUpdates(1)
+	eq(W.NoticeText(), "You're alive again. Close this window and open your profession again.")
+	-- reopening alive loads the profession: message gone, numbers back
+	W.CloseProfessions()
+	eq(W.NoticeText(), nil, "closed with the window")
+	W.OpenProfessions(); W.SelectRecipe(7892)
+	eq(W.NoticeText(), nil); truthy(has(panel(), "Profit: +43s 85c · after 5% AH cut"), show(panel()))
+	eq(FS().errors or 0, 0, tostring(FS().lastError))
+end)
+
+test("v8.2 dead after an earlier session: the form's stale recipe never brings back numbers on the empty page", function()
+	W.CraftPrices(); W.Boot()
+	W.OpenProfessions(); W.SelectRecipe(7892)
+	truthy(has(panel(), "Cost to craft: 27s 30c"), show(panel()))
+	W.CloseProfessions()
+	W.dead = true; W.OpenProfessionsFailed()
+	eq(ProfessionsFrame.CraftingPage.SchematicForm:GetRecipeInfo().recipeID, 7892, "stub: stale recipe kept")
+	eq(W.PanelText(), nil, "no numbers while nothing loaded")
+	W.TickUpdates(2)
+	eq(W.NoticeText(), "You can't use professions while dead. Resurrect, then open it again.")
+	eq(W.PanelText(), nil)
+	eq(FS().errors or 0, 0, tostring(FS().lastError))
+end)
+
+test("v8.2 a failed open while alive (combat, interrupted): generic message; a loaded profession never gets one", function()
+	W.CraftPrices(); W.Boot()
+	W.OpenProfessionsFailed(); W.TickUpdates(2)
+	eq(W.NoticeText(), "This profession didn't open. Try again.")
+	W.CloseProfessions()
+	-- loaded but no recipe selected (e.g. a gathering profession): no message
+	W.OpenProfessions(); W.TickUpdates(2); W.TickUpdates(2)
+	eq(W.NoticeText(), nil)
+	ForeverScribe.Slash("craftprices off"); W.CloseProfessions(); W.OpenProfessionsFailed(); W.TickUpdates(2)
+	eq(W.NoticeText(), nil, "off means off")
+	eq(FS().errors or 0, 0, tostring(FS().lastError))
+end)
+
+test("v8.2 do-not-touch: no writes and only getters on Blizzard's profession frames (open, select, fail, close)", function()
+	W.CraftPrices(); W.Boot()
+	W.OpenProfessions(); W.SelectRecipe(7892, 1); W.SelectRecipe(3915, 8, 2); W.TickUpdates(1)
+	W.descExtra = 40; W.SelectRecipe(7892, 8); W.descExtra = 80; W.SelectRecipe(7892, 8)
+	W.CloseProfessions()
+	W.dead = true; W.OpenProfessionsFailed(); W.TickUpdates(2); W.dead = false; W.TickUpdates(1)
+	W.CloseProfessions()
+	ForeverScribe.Slash("craftprices off"); ForeverScribe.Slash("craftprices on")
+	truthy(#W.blizz.calls > 0, "the contract is being recorded")
+	eq(#W.blizz.writes, 0, "writes: " .. table.concat(W.blizz.writes, ", "))
+	local ok = { IsShown = true, GetRecipeInfo = true, GetBottom = true, GetFrameStrata = true, GetFrameLevel = true }
+	for _, c in ipairs(W.blizz.calls) do truthy(ok[c:match(":(.*)$")], "called " .. c) end
+	-- and no hooks of any kind in the source
 	local src = io.open(ROOT .. "addon/ForeverScribe/Craft.lua"):read("*a"):gsub("%-%-[^\n]*", "")
-	truthy(not src:find("hooksecurefunc", 1, true), "no hooksecurefunc")
-	truthy(not src:find("RegisterCallback", 1, true), "no EventRegistry callbacks")
-	truthy(not src:find("HookScript", 1, true), "no HookScript on Blizzard frames")
+	for _, bad in ipairs({ "hooksecurefunc", "RegisterCallback", "HookScript", "EventRegistry", "SetParent" }) do
+		truthy(not src:find(bad, 1, true), "Craft.lua uses " .. bad)
+	end
 end)
 
-test("v8 no price file: nothing shown, no errors; the window opened before login is hooked late", function()
+test("v8 no price file: nothing shown, no errors; the window opened before login is watched late", function()
 	W.Boot()
 	eq(openAt(7892)[1], nil)
 	eq(FS().errors or 0, 0, tostring(FS().lastError))
-	-- profession UI loaded before ForeverScribe hooked it: the hook still lands on TRADE_SKILL_SHOW
+	-- profession UI loaded before ForeverScribe: the watcher still starts on TRADE_SKILL_SHOW
 	dofile(ROOT .. "tests/lua/wow_stub.lua"); W.Reset(); W.ROOT = ROOT
 	W.CraftPrices(); W.OpenProfessions(); W.SelectRecipe(7892)
 	W.Boot(); W.Fire("TRADE_SKILL_SHOW")
 	W.TickUpdates(1)
-	truthy(has(panel(), "Profit | +43s 85c"), show(panel()))
+	truthy(has(panel(), "Profit: +43s 85c · after 5% AH cut"), show(panel()))
 	eq(ForeverScribe.Craft.hooked, true)
 end)
 
-test("v8 Craft.lua only post-hooks: never crafts, buys, sells or touches the Create buttons", function()
+test("v8 Craft.lua never crafts, buys, sells, casts or touches the Create buttons", function()
 	local fh = assert(io.open(ROOT .. "addon/ForeverScribe/Craft.lua")); local src = fh:read("*a"); fh:close()
 	local code = src:gsub("%-%-[^\n]*", "")
 	for _, bad in ipairs({ "CraftRecipe", "CraftSalvage", "RecraftRecipe", "CreateButton", "CreateAllButton",
 		"CreateMultipleInputBox", "BuyMerchantItem", "PostItem", "PostCommodity", "PlaceBid", "ReloadUI", "SetScript(\"OnClick",
-		"CastSpell", "RunMacro", "SendChatMessage", "UseContainerItem" }) do
+		"CastSpell", "CastProfessionSpell", "SelectBookPage", "RunMacro", "SendChatMessage", "UseContainerItem",
+		"GameTooltip", ":Show()", ":Hide()" }) do
 		truthy(not code:find(bad, 1, true), "Craft.lua uses " .. bad)
 	end
 	truthy(not code:find("SchematicForm.Init =", 1, true) and not code:find("form.Init =", 1, true), "never replaces Init")
+	truthy(not code:find("K.OnInit", 1, true) and not code:find("K.OnListEnter", 1, true), "dead code removed")
 end)
 
 test("v8 secret values in the schematic or recipe info degrade silently", function()
@@ -1420,7 +1530,7 @@ test("v8 secret values in the schematic or recipe info degrade silently", functi
 	W.trade.recipes[6413] = { name = W.Secret("Herb Baked Egg"), learned = true, output = W.Secret(6888), qty = 1,
 		reagents = { { itemID = W.Secret(6889), qty = 1 } } }
 	W.OpenProfessions()
-	ProfessionsFrame.CraftingPage.SchematicForm:Init({ recipeID = W.Secret(6413) })
+	W.internal(function() ProfessionsFrame.CraftingPage.SchematicForm:Init({ recipeID = W.Secret(6413) }) end)
 	eq(W.PanelText(), nil)
 	W.SelectRecipe(6413)
 	eq(FS().errors or 0, 0, tostring(FS().lastError))

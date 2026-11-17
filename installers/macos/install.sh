@@ -74,7 +74,7 @@ fi
 TS="$(date +%Y%m%d-%H%M%S)"
 run mkdir -p "$SUPPORT"
 MANIFEST="$SUPPORT/install-manifest.txt"
-[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.8.0"; } > "$MANIFEST.new"
+[ $DRY -eq 0 ] && { echo "installed_at=$TS"; echo "wow_dir=$WOW_DIR"; echo "version=0.8.2"; } > "$MANIFEST.new"
 
 say "1) Addon -> $ADDONS"
 for d in $ADDON_DIRS; do

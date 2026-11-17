@@ -2,7 +2,7 @@
 ## Title: ForeverScribe prices
 ## Notes: Auction-house prices for ForeverScribe's item tooltips. Data only: your agent rewrites Prices.lua (foreverscribe prices write); the game reads it at login and /reload.
 ## Author: ForeverScribe contributors
-## Version: 0.8.1
+## Version: 0.8.2
 ## Group: ForeverScribe
 
 Prices.lua

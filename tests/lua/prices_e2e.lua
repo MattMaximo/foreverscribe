@@ -10,7 +10,7 @@ W.bags[0][5] = { itemID = 4305, count = 12 }
 W.Boot()
 local T = ForeverScribe.Tooltip
 local out = { loaded = T.Data() ~= nil, error = T.loadError or (not ok and tostring(err)) or nil, label = T.Data() and T.Data().label, lines = {} }
--- r<recipeID>[s]: open the profession window, select that recipe, record the craft panel (0.8)
+-- r<recipeID>: open the profession window, select that recipe, record the craft numbers in its detail pane (0.8.2)
 for i = 2, #arg do
 	local r, id, shift = arg[i]:match("^(r?)(%d+)(s?)$")
 	W.shift = shift == "s"

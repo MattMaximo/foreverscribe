@@ -78,7 +78,7 @@ if (-not $AddonOnly -and -not $pushUrl -and -not $Folder) {
 if (Get-Process -Name "Wow*" -ErrorAction SilentlyContinue) { Say "Note: WoW is running. Fully quit and restart it to load new addons." }
 
 $ts = Get-Date -Format "yyyyMMdd-HHmmss"
-$man = [ordered]@{ installedAt = $ts; wowDir = $wow; version = "0.8.0" }
+$man = [ordered]@{ installedAt = $ts; wowDir = $wow; version = "0.8.2" }
 if (Test-Path $Manifest) {
     $old = Get-Content $Manifest -Raw | ConvertFrom-Json
     foreach ($p in $old.PSObject.Properties) { if ($p.Name -like "backup_*") { $man[$p.Name] = $p.Value } }

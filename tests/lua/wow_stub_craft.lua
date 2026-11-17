@@ -1,93 +1,210 @@
 -- v0.8 additions to the simulated client: the profession window. Shapes from Forever's UI source:
---   ProfessionsFrame.CraftingPage.SchematicForm (Blizzard_Professions/Blizzard_ProfessionsCrafting.xml:143) with
---   ProfessionsRecipeSchematicFormMixin:Init(recipeInfo) / :GetRecipeInfo() (Blizzard_ProfessionsRecipeSchematicForm.lua
---   :361, :1530); EventRegistry:TriggerEvent("Professions.RecipeListOnEnter", row, elementData.data)
---   (Blizzard_ProfessionsRecipeList.lua:394); callbacks get (owner, ...) (CallbackRegistry.lua:184);
+--   ProfessionsFrame.CraftingPage.SchematicForm (Blizzard_Professions/Blizzard_ProfessionsCrafting.xml:143), 484 high
+--   (Camelot SchematicFormCraftingTemplate) with .Reagents / .OptionalReagents containers (ResizeLayoutFrame: they
+--   grow with their slots; basic reagents 4 per column, 50 high + 5 apart, under a 20 high "Reagents:" label;
+--   Blizzard_ProfessionsRecipeSchematicForm.lua:1274-1305, Blizzard_ProfessionsRecipeReagentSlotBase.xml:7) and
+--   ProfessionsRecipeSchematicFormMixin:GetRecipeInfo() (:1530);
+--   a failed profession cast (dead, ghost, combat) still shows the crafting page, with nothing loaded
+--   (ProfessionsFrameRightTabMixin:OnClick, Blizzard_ProfessionsTemplates.lua:983-990): professionID 0
+--   (ProfessionsMixin:Refresh, Blizzard_ProfessionsFrame.lua:284), no TRADE_SKILL_SHOW;
 --   C_TradeSkillUI.GetRecipeSchematic -> CraftingRecipeSchematic (TradeSkillUITypesDocumentation.lua:281);
 --   Enum.CraftingReagentType.Basic = 1 (ProfessionConstantsDocumentation.lua:195); bindType 1 = bind on pickup.
+--
+-- Do-not-touch contract: every Blizzard profession frame is a proxy that records each write (W.blizz.writes) and each
+-- method call (W.blizz.calls) made from outside the stub itself (the stub's own moves run inside W.internal).
 
 local W = _G.W
 local baseReset = W.Reset
 
-local function frame(name)
-	local f = { shown = false, hooks = {}, name = name }
-	function f:IsShown() return self.shown end
-	function f:Show() self.shown = true; for _, h in ipairs(self.hooks.OnShow or {}) do h(self) end end
-	function f:Hide() self.shown = false; for _, h in ipairs(self.hooks.OnHide or {}) do h(self) end end
-	function f:HookScript(s, fn) self.hooks[s] = self.hooks[s] or {}; table.insert(self.hooks[s], fn) end
-	return f
-end
+W.blizz = { calls = {}, writes = {} }
+local stubbing = 0
+function W.internal(fn, ...) stubbing = stubbing + 1; local r = { pcall(fn, ...) }; stubbing = stubbing - 1
+	if not r[1] then error(r[2], 2) end return unpack(r, 2) end
 
-function hooksecurefunc(t, name, fn)
-	if type(t) == "string" then t, name, fn = _G, t, name end
-	local orig = t[name]
-	t[name] = function(...) local r = { orig(...) }; fn(...); return unpack(r) end
-	W.secureHooks = (W.secureHooks or 0) + 1
+local function frame(name, geo)
+	local o = { shown = false, name = name, geo = geo or {} }
+	function o:IsShown() return self.shown end
+	function o:Show() self.shown = true end
+	function o:Hide() self.shown = false end
+	function o:GetBottom() return self.geo.bottom end
+	function o:GetTop() return self.geo.top end
+	function o:GetFrameStrata() return "MEDIUM" end
+	function o:GetFrameLevel() return 10 end
+	local proxy = {}
+	return setmetatable(proxy, {
+		__index = function(_, k)
+			local v = o[k]
+			if type(v) ~= "function" then return v end
+			return function(self, ...)
+				if stubbing == 0 then table.insert(W.blizz.calls, name .. ":" .. k) end
+				return v(self == proxy and o or self, ...)
+			end
+		end,
+		__newindex = function(_, k, v)
+			if stubbing == 0 then table.insert(W.blizz.writes, name .. "." .. tostring(k)) end
+			o[k] = v
+		end,
+		__raw = o,
+	})
 end
-
-EventRegistry = {
-	cb = {},
-	RegisterCallback = function(self, ev, fn, owner) self.cb[ev] = self.cb[ev] or {}; table.insert(self.cb[ev], { fn, owner }) end,
-	TriggerEvent = function(self, ev, ...) for _, c in ipairs(self.cb[ev] or {}) do c[1](c[2], ...) end end,
-}
+local function raw(p) return getmetatable(p).__raw end
 
 Enum = Enum or {}
 Enum.CraftingReagentType = { Modifying = 0, Basic = 1, Finishing = 2, Automatic = 3 }
 
--- The profession window (Blizzard_Professions, load-on-demand): created when the player opens a profession.
-function W.OpenProfessions()
-	if not ProfessionsFrame then
-		local pf = frame("ProfessionsFrame")
-		pf.CraftingPage = frame("CraftingPage")
-		local form = frame("SchematicForm")
+function UnitIsDeadOrGhost(unit) return unit == "player" and W.dead or false end
+
+W.profID = 0
+local baseBase = C_TradeSkillUI.GetBaseProfessionInfo
+C_TradeSkillUI.GetBaseProfessionInfo = function()
+	local t = baseBase() or {}
+	t.professionID = W.profID
+	return t
+end
+C_TradeSkillUI.GetChildProfessionInfo = function() return { professionID = W.profID } end
+
+-- Form geometry (screen units, form 100..584): the reagent list starts under the description and grows down.
+W.FORM_BOTTOM, W.FORM_TOP = 100, 584
+local function layout(nReagents, nOptional)
+	local pf = ProfessionsFrame
+	local form = raw(pf.CraftingPage.SchematicForm)
+	local reag, opt = raw(form.Reagents), raw(form.OptionalReagents)
+	local top = W.FORM_TOP - 130 - (W.descExtra or 0)
+	reag.shown = nReagents > 0
+	local rows = math.min(nReagents, 4)
+	reag.geo = { top = top, bottom = top - 20 - rows * 50 - math.max(0, rows - 1) * 5 }
+	opt.shown = (nOptional or 0) > 0
+	opt.geo = { top = reag.geo.bottom - 20, bottom = reag.geo.bottom - 20 - 20 - 40 * math.ceil((nOptional or 0) / 4) }
+end
+
+local function build()
+	if ProfessionsFrame then return end
+	W.internal(function()
+		local pf = frame("ProfessionsFrame", { bottom = 60, top = 640 })
+		local page = frame("CraftingPage", { bottom = 60, top = 610 })
+		local form = frame("SchematicForm", { bottom = W.FORM_BOTTOM, top = W.FORM_TOP })
 		form.Init = function(self, info) self.info = info; W.formInits = (W.formInits or 0) + 1 end
 		form.GetRecipeInfo = function(self) return self.info end
-		pf.CraftingPage.SchematicForm = form
-		pf.CraftingPage.shown = true
+		form.Reagents = frame("Reagents")
+		form.OptionalReagents = frame("OptionalReagents")
+		form.TrackRecipeCheckbox = frame("TrackRecipeCheckbox", { bottom = W.FORM_BOTTOM + 11, top = W.FORM_BOTTOM + 37 })
+		page.SchematicForm = form
+		pf.CraftingPage = page
 		ProfessionsFrame = pf
-		W.Fire("ADDON_LOADED", "Blizzard_Professions")
-	end
-	ProfessionsFrame:Show()
+	end)
+	W.Fire("ADDON_LOADED", "Blizzard_Professions")
+end
+
+-- The profession window (Blizzard_Professions, load-on-demand) opened on a profession that loads.
+function W.OpenProfessions()
+	build()
+	W.internal(function()
+		ProfessionsFrame:Show(); ProfessionsFrame.CraftingPage:Show(); ProfessionsFrame.CraftingPage.SchematicForm:Show()
+	end)
+	W.profID = 197
 	W.Fire("TRADE_SKILL_SHOW")
 	return ProfessionsFrame
 end
 
--- Click a recipe in the list (Blizzard calls SchematicForm:Init with its recipeInfo).
-function W.SelectRecipe(rid)
-	local r = W.trade and W.trade.recipes[rid]
-	ProfessionsFrame.CraftingPage.SchematicForm:Init({ recipeID = rid, name = r and r.name, learned = true })
+-- A profession tab clicked while the cast fails (dead, ghost, combat): crafting page shown, nothing loaded, no event.
+function W.OpenProfessionsFailed()
+	build()
+	W.internal(function()
+		local form = ProfessionsFrame.CraftingPage.SchematicForm
+		ProfessionsFrame:Show(); ProfessionsFrame.CraftingPage:Show(); form:Show()
+		-- the form keeps whatever recipe it last showed (SchematicForm:Init runs only for a new recipe)
+		if not form.info then layout(0) end
+	end)
+	W.profID = 0
+	return ProfessionsFrame
+end
+
+function W.CloseProfessions()
+	W.internal(function()
+		ProfessionsFrame:Hide() -- CraftingPage:Reset() clears only its professionInfo, not the form's recipe
+	end)
+	W.profID = 0
+	W.Fire("TRADE_SKILL_CLOSE")
 	W.TickUpdates(1)
 end
 
-function W.HoverRecipe(rid)
+-- Click a recipe in the list (Blizzard calls SchematicForm:Init with its recipeInfo and lays out the reagents).
+function W.SelectRecipe(rid, nReagents, nOptional)
 	local r = W.trade and W.trade.recipes[rid]
-	local row = { Label = {} }
-	GameTooltip.lines, GameTooltip.owner, GameTooltip.shown = {}, nil, false
-	EventRegistry:TriggerEvent("Professions.RecipeListOnEnter", row, { recipeInfo = { recipeID = rid, name = r and r.name } })
-	return row
+	if not nReagents then
+		nReagents = r and r.reagents and #r.reagents or 0
+		local d = ForeverScribe_PriceData
+		local s = d and d.p and d.p[100000000 + rid]
+		if nReagents == 0 and type(s) == "string" then
+			for _ in (s:match(";(.*)$") or ""):gmatch("%d+:%d+") do nReagents = nReagents + 1 end
+		end
+	end
+	W.internal(function()
+		ProfessionsFrame.CraftingPage.SchematicForm:Init({ recipeID = rid, name = r and r.name, learned = true })
+		layout(nReagents, nOptional)
+	end)
+	W.TickUpdates(1)
 end
 
--- Our panel's lines as plain text (coins as g/s/c, colour codes stripped)
--- Run every frame's OnUpdate once (the craft panel watches the profession window from its own frame).
+-- Run every frame's OnUpdate once (the craft numbers watch the profession window from our own frame).
 function W.TickUpdates(e)
 	for _, f in ipairs(W.updaters or {}) do
 		if f.scripts and f.scripts.OnUpdate then f.scripts.OnUpdate(f, e or 1) end
 	end
 end
 
-function W.PanelText()
-	W.TickUpdates(1)
-	local t = _G.ForeverScribeCraftTip
-	if not t or not t.shown then return nil end
-	return W.TipText(t)
+-- Our own frames: font strings, points, strata. (Added to the stub's frame metatable.)
+local FrameMT = getmetatable(UIParent)
+local FontMT = {}
+FontMT.__index = FontMT
+function FontMT:SetText(s) self.text = s end
+function FontMT:GetText() return self.text end
+function FontMT:Show() self.shown = true end
+function FontMT:Hide() self.shown = false end
+function FontMT:IsShown() return self.shown end
+function FontMT:SetPoint(...) self.points[#self.points + 1] = { ... } end
+function FontMT:ClearAllPoints() self.points = {} end
+function FontMT:SetTextColor() end
+function FontMT:GetStringWidth() return #(W.Plain(self.text or "")) * 5 end
+function FrameMT:CreateFontString(name, layer, font)
+	local fs = setmetatable({ font = font, layer = layer, text = "", shown = true, points = {} }, FontMT)
+	self.fontStrings = self.fontStrings or {}
+	table.insert(self.fontStrings, fs)
+	return fs
+end
+function FrameMT:SetPoint(...) self.points = self.points or {}; self.points[#self.points + 1] = { ... } end
+function FrameMT:ClearAllPoints() self.points = {} end
+function FrameMT:SetHeight(h) self.height = h end
+function FrameMT:SetSize(w, h) self.width, self.height = w, h end
+function FrameMT:SetFrameStrata(s) self.strata = s end
+function FrameMT:SetFrameLevel(l) self.level = l end
+
+-- Text with coins as g/s/c and colour codes stripped.
+function W.Plain(s)
+	s = tostring(s or ""):gsub("|T[^|]*|t", function(m) return m:find("GOLD") and "g" or m:find("SILVER") and "s" or m:find("COPPER") and "c" or "" end)
+	return (s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
 end
 
-local baseCreate = CreateFrame
-function CreateFrame(kind, name, parent, template)
-	if kind == "GameTooltip" then
-		return W.NewTip(name)
+-- The craft numbers as "Label: value · note" lines (nil when not shown).
+function W.PanelText()
+	W.TickUpdates(1)
+	local f = _G.ForeverScribeCraftNumbers
+	if not f or not f.shown then return nil end
+	local out = {}
+	for i = 1, f.n or 0 do
+		local r = f.rows[i]
+		local s = W.Plain(r.label.text) .. " " .. W.Plain(r.value.text)
+		if r.note.shown and (r.note.text or "") ~= "" then s = s .. " · " .. W.Plain(r.note.text) end
+		out[#out + 1] = s
 	end
-	return baseCreate(kind, name, parent, template)
+	return out
+end
+
+-- The empty-window message (nil when not shown).
+function W.NoticeText()
+	local f = _G.ForeverScribeCraftNotice
+	if not f or not f.shown then return nil end
+	return f.title.text .. " " .. f.body.text
 end
 
 C_Item.GetItemNameByID = function(id) return W.items[id] and W.items[id].name end
@@ -107,9 +224,9 @@ end
 
 function W.Reset()
 	baseReset()
-	ProfessionsFrame, ForeverScribeCraftTip, ForeverScribe_PriceData = nil, nil, nil
-	W.secureHooks, W.formInits = 0, 0
-	EventRegistry.cb = {}
+	ProfessionsFrame, ForeverScribeCraftNumbers, ForeverScribeCraftNotice, ForeverScribe_PriceData = nil, nil, nil, nil
+	W.formInits, W.dead, W.profID, W.descExtra = 0, false, 0, nil
+	W.blizz = { calls = {}, writes = {} }
 	W.items[2996] = { name = "Bolt of Linen Cloth", quality = 1, stack = 20, sell = 40, class = 7 }
 	W.items[2589] = { name = "Linen Cloth", quality = 1, stack = 20, sell = 13, class = 7 }
 	W.items[2320] = { name = "Coarse Thread", quality = 1, stack = 20, sell = 2, class = 7 }

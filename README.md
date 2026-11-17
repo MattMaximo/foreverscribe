@@ -116,13 +116,14 @@ you asked for. Sources and the Stormwind/Mulgore map-redraw fix: [`docs/WAYPOINT
 
 ## Craft cost & profit in the profession window (0.8)
 
-Open a profession and select a recipe: a panel in the tooltip's style sits beside the window with **Cost to craft**
-(materials at their typical AH price, or the vendor's price where a vendor sells them cheaper: threads, dyes, spices,
-vials), **Sells for** (the crafted item's typical price × how many one craft makes) and **Profit** after the 5% AH cut
-(green or red). Hold **Shift** for each material: have/need, price each, AH or vendor. Hovering a recipe in the list
-shows the same numbers compactly. A number that can't be calculated is left out, never guessed (a bind-on-pickup
-result shows the cost only). `/scribe craftprices on|off`. Your agent gets the same list ranked:
-`foreverscribe craft --profit [profession]` (MCP tool `craft_profit`). Details: [`docs/PRICES.md`](docs/PRICES.md).
+Open a profession and select a recipe: under the **Reagents:** list in the recipe pane, in the window's own fonts,
+you see **Cost to craft** (materials at their typical AH price, or the vendor's price where a vendor sells them cheaper:
+threads, dyes, spices, vials), **Sells for** (the crafted item's typical price × how many one craft makes) and
+**Profit** after the 5% AH cut (green or red). A number that can't be calculated is left out, never guessed (a
+bind-on-pickup result shows the cost only). If the window opens empty because the profession didn't load (you're dead
+or a ghost, in combat, or the cast was interrupted), it says so in the middle of the window. `/scribe craftprices
+on|off`. Your agent gets the same list ranked: `foreverscribe craft --profit [profession]` (MCP tool `craft_profit`).
+Details: [`docs/PRICES.md`](docs/PRICES.md).
 
 ## AH prices in your tooltips (0.6)
 

@@ -31,24 +31,28 @@ which prices are loaded and how old they are.
 
 ## Craft cost & profit in the profession window (0.8)
 
-Select a recipe in the profession window and a panel in the same style appears beside it:
+Select a recipe in the profession window and three lines appear in the recipe pane, under the **Reagents:** list
+(gold labels, white amounts with coin icons, as Blizzard draws that pane):
 
 | Line | Meaning |
 |---|---|
-| **Auction House** · `PvP Alliance · 14m ago` | market and scan age, as in the tooltip |
-| **Cost to craft** | every material at its typical AH price, or the vendor's price where a vendor sells it cheaper |
-| **Sells for** (makes N) | the crafted item's typical AH price × how many one craft makes |
-| **Profit** | sells for − the AH cut − cost; green when positive, red when negative (larger font) |
-| After the 5% AH cut · Hold Shift for materials | |
+| **Cost to craft:** | every material at its typical AH price, or the vendor's price where a vendor sells it cheaper |
+| **Sells for:** (makes N) | the crafted item's typical AH price × how many one craft makes |
+| **Profit:** | sells for − the AH cut − cost; green when positive, red when negative; "after 5% AH cut" in small grey |
 
-**Shift** lists each material: have/need (bags + bank; green when you have enough), the price of one, and where that
-price comes from (AH or vendor), then the AH cut in copper. Hovering a recipe in the list adds the same numbers,
-compactly, to its tooltip. `/scribe craftprices on|off`.
+When the reagent list leaves no room above **Track Recipe**, the lines sit in the pane's bottom-left corner instead
+(without the grey note); when even that would cover a reagent, they are left out. `/scribe craftprices on|off`.
+
+Empty window: when a profession tab is clicked but the profession spell doesn't cast (dead or a ghost, in combat,
+interrupted), Forever's window still flips to the empty recipe page. After 1.5 s ForeverScribe writes in its middle
+"You can't use professions while dead. Resurrect, then open it again." (or "This profession didn't open. Try again."),
+and "You're alive again. Close this window and open your profession again." once you resurrect. It never reopens the
+profession for you.
 
 Rules:
 - A line that can't be calculated is left out, never guessed. A material with no AH listings that no vendor sells
-  leaves out **Cost** and **Profit** ("1 material has no price"); a crafted item that binds when picked up, or that
-  nobody listed, leaves out **Sells for** and **Profit** (BoP: "Binds when picked up · can't be sold").
+  leaves out **Cost** and **Profit**; a crafted item that binds when picked up, or that nobody listed, leaves out
+  **Sells for** and **Profit**. Nothing computable: nothing shown.
 - Vendor prices: the price your characters saw at a vendor (merchant capture, unlimited stock, money only) wins;
   otherwise `data/vendor-prices.json` (game data: the client's list price for materials 50+ vendors sell). Limited-stock
   sellers don't count.

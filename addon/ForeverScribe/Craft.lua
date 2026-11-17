@@ -1,17 +1,21 @@
--- ForeverScribe craft cost & profit in the profession window (0.8). Read-only: a tooltip-styled panel beside the
--- profession window for the selected recipe, plus a short line when you hover a recipe in the list. It never crafts,
--- buys or sells, never touches the Create buttons, and only post-hooks Blizzard code (hooksecurefunc / HookScript /
--- EventRegistry callbacks); every game call is pcall'd and secret values are dropped.
+-- ForeverScribe craft cost & profit in the profession window (0.8.2). Read-only. Three lines written into the recipe
+-- detail pane, under Blizzard's "Reagents:" list, in Blizzard's own fonts:
 --   Cost to craft  materials at their typical AH price, or the vendor's price where a vendor sells them cheaper
 --   Sells for      the crafted item's typical AH price x how many one craft makes
---   Profit         sells for - the AH cut - cost (green / red)
+--   Profit         sells for - the AH cut - cost (green / red), "after 5% AH cut" in small grey beside it
 -- A line that can't be calculated is left out, never guessed (bind-on-pickup result, material with no price).
+-- When the crafting page is shown but no profession loaded (the profession spell didn't cast: dead, ghost, combat,
+-- interrupted) a short message sits in the middle of the empty window instead.
+-- Never hooks Blizzard code, never writes to or calls anything on a Blizzard frame except getters (IsShown,
+-- GetRecipeInfo, GetBottom, GetFrameStrata, GetFrameLevel): our own frames, parented to UIParent, are anchored to
+-- the window and drawn just above it. It never crafts, buys or sells, never touches the Create buttons, never casts.
 -- Prices come from the companion's price file (ForeverScribe_Prices): for the recipes your characters know, product,
 -- count, cost and sells-for are precomputed there (p[100000000 + recipeID]), so selecting a recipe is a table lookup;
 -- other recipes are read from the client's own recipe schematic.
--- Frame and API names: Forever UI source, Blizzard_Professions (ProfessionsFrame.CraftingPage.SchematicForm,
--- ProfessionsRecipeSchematicFormMixin:Init(recipeInfo), EventRegistry "Professions.RecipeListOnEnter"),
--- C_TradeSkillUI.GetRecipeSchematic (TradeSkillUIDocumentation.lua). /scribe craftprices on|off
+-- Frame and API names: Forever UI source, Blizzard_Professions (ProfessionsFrame.CraftingPage.SchematicForm and its
+-- Reagents / OptionalReagents containers, ProfessionsRecipeSchematicFormMixin:GetRecipeInfo()),
+-- C_TradeSkillUI.GetRecipeSchematic / GetChildProfessionInfo / GetBaseProfessionInfo (TradeSkillUIDocumentation.lua).
+-- /scribe craftprices on|off
 
 local FS = ForeverScribe
 local U = FS.Util
@@ -26,7 +30,6 @@ K.DEFAULT_CUT = 0.05
 local MAX_MATS = 12
 
 local CL = T and T.COLORS or {}
-local GOLD, LABEL, VALUE, DIM = CL.GOLD, CL.LABEL, CL.VALUE, CL.DIM
 local GOOD, BAD = CL.GOOD or "ff4fd36b", CL.BAD or "ffff5e57"
 local function color(hex, s) return "|c" .. hex .. s .. "|r" end
 
@@ -109,8 +112,7 @@ function K.Recipe(recipeID)
 end
 
 -- Numbers for one craft. ctx.bop = the crafted item binds when picked up (can't be listed).
--- Returns { cost, sells, fee, profit, mats = { {id, n, unit, src}, ... }, missing = n } with nil for anything that
--- can't be calculated.
+-- Returns { cost, sells, fee, cut, profit, qty, missing = n } with nil for anything that can't be calculated.
 function K.Evaluate(rec, ctx)
 	ctx = ctx or {}
 	local out = { mats = {}, missing = 0, qty = rec.qty or 1 }
@@ -136,55 +138,28 @@ function K.Evaluate(rec, ctx)
 	return out
 end
 
+local function pctText(cut)
+	local p = cut * 100
+	return (p == math.floor(p) and tostring(math.floor(p)) or string.format("%.1f", p)) .. "%"
+end
+
 local function Signed(c)
 	if c < 0 then return color(BAD, "-" .. T.Money(-c)) end
 	if c > 0 then return color(GOOD, "+" .. T.Money(c)) end
 	return T.Money(0)
 end
 
-local function pctText(cut)
-	local p = cut * 100
-	return (p == math.floor(p) and tostring(math.floor(p)) or string.format("%.1f", p)) .. "%"
-end
-
--- Lines in Tooltip.lua's shape. ctx: shift, now, bop, have(itemID) -> n, name(itemID) -> text, compact.
-function K.Lines(rec, ctx)
-	local P = Data()
-	if not P or not rec then return nil end
-	ctx = ctx or {}
+-- The lines for the detail pane: { {label, value, note}, ... }, only the ones that can be calculated (maybe none).
+-- ctx.bop = the crafted item binds when picked up.
+function K.Rows(rec, ctx)
+	if not Data() or not rec then return nil end
 	local e = K.Evaluate(rec, ctx)
 	local out = {}
-	local function add(l, r, lc, rc, big) out[#out + 1] = { l, r, lc or LABEL, rc or VALUE, big = big } end
-	local label = type(P.label) == "string" and P.label ~= "" and P.label or "Auction House"
-	local age = (ctx.now or 0) - (P.captured or 0)
-	local ageText = T.Age(age)
-	if age > 6 * 3600 then ageText = color(CL.WARN or "ffffc46b", ageText) end
-	add("Auction House", label .. " · " .. ageText, GOLD, DIM)
-	if e.cost then add("Cost to craft", T.Money(e.cost)) end
-	if e.sells then add(e.qty > 1 and ("Sells for (makes " .. e.qty .. ")") or "Sells for", T.Money(e.sells)) end
-	if e.profit then add("Profit", Signed(e.profit), nil, nil, true) end
-	-- why a line is missing (never a number)
-	if not e.sells then
-		if ctx.bop then out[#out + 1] = { "Binds when picked up · can't be sold", nil, DIM }
-		elseif rec.product then out[#out + 1] = { "Crafted item: no recent listings", nil, DIM } end
+	if e.cost then out[#out + 1] = { "Cost to craft:", T.Money(e.cost) } end
+	if e.sells then
+		out[#out + 1] = { e.qty > 1 and ("Sells for (makes " .. e.qty .. "):") or "Sells for:", T.Money(e.sells) }
 	end
-	if not e.cost and e.missing > 0 then
-		out[#out + 1] = { e.missing == 1 and "1 material has no price" or (e.missing .. " materials have no price"), nil, DIM }
-	end
-	if ctx.compact then return out end
-	if not ctx.shift then
-		if e.profit then out[#out + 1] = { "After the " .. pctText(e.cut) .. " AH cut · Hold Shift for materials", nil, DIM }
-		else out[#out + 1] = { "Hold Shift for materials", nil, DIM } end
-		return out
-	end
-	for _, m in ipairs(e.mats) do
-		local id, need, unit, src = m[1], m[2], m[3], m[4]
-		local have = ctx.have and tonumber(ctx.have(id)) or nil
-		local nm = (ctx.name and ctx.name(id)) or ("item " .. id)
-		local hv = have and color(have >= need and GOOD or BAD, have .. "/" .. need) or (need .. "x")
-		add(nm .. "  " .. hv, unit and (T.Money(unit) .. " each · " .. src) or "—", nil, not unit and DIM or nil)
-	end
-	if e.fee then add("AH cut (" .. pctText(e.cut) .. ")", T.Money(e.fee)) end
+	if e.profit then out[#out + 1] = { "Profit:", Signed(e.profit), "after " .. pctText(e.cut) .. " AH cut" } end
 	return out
 end
 
@@ -197,142 +172,267 @@ function K.Enabled()
 	return not (db and db.settings and db.settings.craftprices == "off")
 end
 
-local function Have(id)
-	local n = Clean((Call("C_Item.GetItemCount", id, true, false, true))) -- bags + bank + reagent bank
-	if n == nil then n = Clean((Call("GetItemCount", id, true))) end
-	return tonumber(n) or 0
-end
-
-local function Name(id)
-	local n = Clean((Call("C_Item.GetItemNameByID", id)))
-	if type(n) ~= "string" then n = Clean((Call("C_Item.GetItemInfo", id))) end
-	return type(n) == "string" and n or nil
-end
-
 local function BindsOnPickup(id)
 	if not id then return false end
 	local bindType = select(14, Call("C_Item.GetItemInfo", id))
 	return Clean(bindType) == 1 -- Enum.ItemBind.OnAcquire
 end
 
-local function Ctx(rec, extra)
-	local ctx = { now = (Try(time)) or 0, shift = Clean((Call("IsShiftKeyDown"))) and true or false,
-		bop = BindsOnPickup(rec and rec.product), have = Have, name = Name }
-	for k, v in pairs(extra or {}) do ctx[k] = v end
-	return ctx
+-- Blizzard frames are only ever read: these getters, nothing else (tests/lua/test_addon.lua "do-not-touch").
+local function get(f, m, ...)
+	local fn = type(f) == "table" and f[m]
+	if type(fn) ~= "function" then return nil end
+	local ok, a = pcall(fn, f, ...)
+	if not ok then return nil end
+	return Clean(a)
 end
+local function shown(f) return get(f, "IsShown") and true or false end
 
-local panel -- our own tooltip-styled panel (never a Blizzard frame)
-K.current = nil -- recipeID of the selected recipe
-
-local function Panel()
-	if panel then return panel end
-	if not CreateFrame then return nil end
-	local ok, f = pcall(CreateFrame, "GameTooltip", "ForeverScribeCraftTip", UIParent, "GameTooltipTemplate")
-	if ok and f then panel = f end
-	return panel
-end
-function K.Panel() return panel end
-
-function K.Hide()
-	if panel then
-		if T.RestoreFonts then T.RestoreFonts(panel) end
-		Try(panel.Hide, panel)
-	end
-end
-
-local function craftingShown()
+local function Window()
 	local pf = _G.ProfessionsFrame
-	local page = pf and pf.CraftingPage
-	return pf and Try(pf.IsShown, pf) and (not page or Try(page.IsShown, page)) and true or false
+	if type(pf) ~= "table" or not shown(pf) then return nil end
+	local page = type(pf.CraftingPage) == "table" and pf.CraftingPage or nil
+	local form = page and type(page.SchematicForm) == "table" and page.SchematicForm or nil
+	return pf, page, form
 end
 
-function K.Render()
-	local rid = K.current
-	if not rid or not K.Enabled() or not craftingShown() then return K.Hide() end
-	local rec = K.Recipe(rid)
-	local lines = rec and K.Lines(rec, Ctx(rec))
-	if not lines then return K.Hide() end
-	local tip = Panel()
-	if not tip then return end
-	local pf = _G.ProfessionsFrame
-	if T.RestoreFonts then T.RestoreFonts(tip) end
-	Try(tip.SetOwner, tip, pf, "ANCHOR_NONE")
-	Try(tip.ClearAllPoints, tip)
-	Try(tip.SetPoint, tip, "BOTTOMLEFT", pf, "BOTTOMRIGHT", 2, 0)
-	Try(tip.ClearLines, tip)
-	local title = rec.product and Name(rec.product)
-	if title then Try(tip.AddLine, tip, title, 1, 1, 1) end
-	T.Draw(tip, lines)
-	Try(tip.Show, tip)
-end
-
--- SchematicForm:Init(recipeInfo) ran: a recipe was selected (or the form was reset).
-function K.OnInit(recipeInfo)
-	local rid = type(recipeInfo) == "table" and tonumber(Clean(recipeInfo.recipeID)) or nil
-	K.current = rid
-	K.Render()
-end
-
--- Hovering a recipe in the list: a compact profit line on the game tooltip (the row's OnLeave hides it).
-function K.OnListEnter(row, data)
-	if not K.Enabled() then return end
-	local info = type(data) == "table" and data.recipeInfo
-	local rid = type(info) == "table" and tonumber(Clean(info.recipeID))
-	local rec = rid and K.Recipe(rid)
-	local lines = rec and K.Lines(rec, Ctx(rec, { compact = true }))
-	if not lines or #lines < 2 then return end
-	local tt = _G.GameTooltip
-	if not tt then return end
-	local owner = Try(tt.GetOwner, tt)
-	local shown = Try(tt.IsShown, tt)
-	if not (shown and owner and type(row) == "table" and owner == row.Label) then
-		Try(tt.SetOwner, tt, row, "ANCHOR_RIGHT")
-		local nm = Clean(info.name)
-		if type(nm) == "string" then Try(tt.AddLine, tt, nm, 1, 1, 1) end
-	end
-	T.Draw(tt, lines)
-	Try(tt.Show, tt)
-end
-
--- No hooks into Blizzard_Professions at all. Forever's profession UI reads secret values that error when the
--- execution path is tainted, and an insecure post-hook / EventRegistry callback taints that path (0.8.0 left the
--- recipe list and schematic empty). Instead our own frame watches the window from outside, read-only, and
--- only while it is open.
-K.hooked = false
-local watcher, lastRid, acc = nil, nil, 0
-local function Selected()
-	local pf = _G.ProfessionsFrame
-	local form = pf and pf.CraftingPage and pf.CraftingPage.SchematicForm
-	if not (form and type(form.GetRecipeInfo) == "function") then return nil end
+local function Selected(form)
+	if not form or not shown(form) or type(form.GetRecipeInfo) ~= "function" then return nil end
 	local ok, info = pcall(form.GetRecipeInfo, form)
 	if not ok or type(info) ~= "table" then return nil end
-	local rid = Clean(info.recipeID)
-	return tonumber(rid)
+	return tonumber(Clean(info.recipeID))
 end
+
+-- Did a profession actually open? Blizzard's own test (ProfessionsMixin:Refresh): professionID ~= 0.
+K.tradeOpen = false -- TRADE_SKILL_SHOW .. TRADE_SKILL_CLOSE
+local function ProfessionLoaded()
+	if K.tradeOpen then return true end
+	for _, info in ipairs({ Call("C_TradeSkillUI.GetChildProfessionInfo") or false,
+		Call("C_TradeSkillUI.GetBaseProfessionInfo") or false }) do
+		local id = type(info) == "table" and tonumber(Clean(info.professionID))
+		if id and id > 0 then return true end
+	end
+	return false
+end
+
+-- Our frames: drawn just above the profession window (same strata, higher level), never parented to it.
+local function Layer(f, pf)
+	local strata = get(pf, "GetFrameStrata")
+	local level = tonumber(get(pf, "GetFrameLevel"))
+	if type(strata) == "string" and f.strata ~= strata then f.strata = strata; Try(f.SetFrameStrata, f, strata) end
+	if level then
+		level = math.min(level + 40, 9000)
+		if f.level ~= level then f.level = level; Try(f.SetFrameLevel, f, level) end
+	end
+end
+
+local function FontString(f, font)
+	local fs = Try(f.CreateFontString, f, nil, "OVERLAY", font)
+	return fs
+end
+
+---------------------------------------------------------------------------
+-- The three lines in the detail pane
+---------------------------------------------------------------------------
+
+local ROW_H, GAP, LABEL_GAP, NOTE_GAP = 15, 14, 8, 6
+local TRACK_ROW = 40 -- Track Recipe checkbox: BOTTOMRIGHT of the form, y 11, 26 high (Camelot OverrideArt)
+local box, boxFailed -- ForeverScribeCraftNumbers
+
+local function Box()
+	if box then return box end
+	if boxFailed or not CreateFrame then return nil end
+	boxFailed = true
+	local ok, f = pcall(CreateFrame, "Frame", "ForeverScribeCraftNumbers", UIParent)
+	if not ok or not f then return nil end
+	f.rows = {}
+	for i = 1, 3 do
+		local r = { label = FontString(f, "GameFontNormalSmall"), value = FontString(f, "GameFontHighlightSmall"),
+			note = FontString(f, "GameFontDisableSmall") }
+		if not (r.label and r.value and r.note) then return nil end
+		f.rows[i] = r
+	end
+	Try(f.SetSize, f, 260, ROW_H * 3)
+	Try(f.Hide, f)
+	box, boxFailed = f, nil
+	return f
+end
+function K.Box() return box end
+
+local function setText(fs, s)
+	if not fs then return end
+	Try(fs.SetText, fs, s or "")
+	if s and s ~= "" then Try(fs.Show, fs) else Try(fs.Hide, fs) end
+end
+
+local function Fill(f, rows)
+	local labelW = 0
+	for i = 1, 3 do
+		local r, l = f.rows[i], rows[i]
+		setText(r.label, l and l[1]); setText(r.value, l and l[2]); setText(r.note, l and l[3])
+		r.hasNote = l and l[3] and true or false
+		if l then labelW = math.max(labelW, tonumber(Try(r.label.GetStringWidth, r.label)) or 0) end
+	end
+	local x = math.floor(labelW + LABEL_GAP + 0.5)
+	for i, r in ipairs(f.rows) do
+		local y = -(i - 1) * ROW_H
+		Try(r.label.ClearAllPoints, r.label); Try(r.label.SetPoint, r.label, "TOPLEFT", f, "TOPLEFT", 0, y)
+		Try(r.value.ClearAllPoints, r.value); Try(r.value.SetPoint, r.value, "TOPLEFT", f, "TOPLEFT", x, y)
+		Try(r.note.ClearAllPoints, r.note); Try(r.note.SetPoint, r.note, "LEFT", r.value, "RIGHT", NOTE_GAP, 0)
+	end
+	f.n = #rows
+	Try(f.SetHeight, f, math.max(1, #rows) * ROW_H)
+end
+
+-- Under the last reagent container; when that leaves no room above the Track Recipe row, in the bottom-left corner
+-- (left of Track Recipe) without the grey note; when that would cover reagents too, not at all.
+local function Place(f, form)
+	local below = (shown(form.OptionalReagents) and form.OptionalReagents) or (shown(form.Reagents) and form.Reagents) or nil
+	local h = (f.n or 3) * ROW_H
+	local fb = tonumber(get(form, "GetBottom"))
+	local ab = below and tonumber(get(below, "GetBottom"))
+	local mode
+	if below and (not fb or not ab or ab - GAP - h >= fb + TRACK_ROW) then mode = "below"
+	elseif not ab or not fb or ab - 6 >= fb + 12 + h then mode = "corner"
+	else mode = "none" end
+	if mode == "none" then return false end
+	local key = mode .. ":" .. tostring(below)
+	if f.placed ~= key then
+		f.placed = key
+		Try(f.ClearAllPoints, f)
+		if mode == "below" then Try(f.SetPoint, f, "TOPLEFT", below, "BOTTOMLEFT", 0, -GAP)
+		else Try(f.SetPoint, f, "BOTTOMLEFT", form, "BOTTOMLEFT", 28, 12) end
+	end
+	for _, r in ipairs(f.rows) do
+		if r.note then
+			if mode == "below" and r.hasNote then Try(r.note.Show, r.note) else Try(r.note.Hide, r.note) end
+		end
+	end
+	return true
+end
+
+function K.HideNumbers()
+	if box then box.rid = nil; Try(box.Hide, box) end
+end
+
+-- Draw (or refresh the place of) the numbers for recipeID in the window's form.
+function K.ShowNumbers(rid, pf, form)
+	local f = Box()
+	if not f then return end
+	if f.rid ~= rid then
+		local rec = K.Recipe(rid)
+		local rows = rec and K.Rows(rec, { bop = BindsOnPickup(rec.product) })
+		if not rows or #rows == 0 then f.rid = rid; f.empty = true; return Try(f.Hide, f) end
+		f.rid, f.empty = rid, false
+		Fill(f, rows)
+	end
+	if f.empty then return end
+	Layer(f, pf)
+	if Place(f, form) then Try(f.Show, f) else Try(f.Hide, f) end
+end
+
+---------------------------------------------------------------------------
+-- The empty-window message
+---------------------------------------------------------------------------
+
+K.GRACE = 1.5 -- seconds the crafting page may sit empty while a profession spell is still casting
+local note, noteFailed -- ForeverScribeCraftNotice
+local function Notice()
+	if note then return note end
+	if noteFailed or not CreateFrame then return nil end
+	noteFailed = true
+	local ok, f = pcall(CreateFrame, "Frame", "ForeverScribeCraftNotice", UIParent)
+	if not ok or not f then return nil end
+	f.title = FontString(f, "GameFontNormalLarge")
+	f.body = FontString(f, "GameFontHighlight")
+	if f.title then Try(f.title.SetPoint, f.title, "BOTTOM", f, "CENTER", 0, 4) end
+	if f.body then Try(f.body.SetPoint, f.body, "TOP", f, "CENTER", 0, -4) end
+	Try(f.SetSize, f, 420, 60)
+	Try(f.Hide, f)
+	note, noteFailed = f, nil
+	return f
+end
+function K.Notice() return note end
+
+K.TEXT = {
+	dead = { "You can't use professions while dead.", "Resurrect, then open it again." },
+	alive = { "You're alive again.", "Close this window and open your profession again." },
+	failed = { "This profession didn't open.", "Try again." },
+}
+
+function K.HideNotice()
+	if note then note.kind = nil; Try(note.Hide, note) end
+end
+
+function K.ShowNotice(kind, pf, page)
+	local f = Notice()
+	if not f then return end
+	if f.kind ~= kind then
+		f.kind = kind
+		local t = K.TEXT[kind] or K.TEXT.failed
+		setText(f.title, t[1]); setText(f.body, t[2])
+	end
+	if f.anchor ~= page then
+		f.anchor = page
+		Try(f.ClearAllPoints, f); Try(f.SetPoint, f, "CENTER", page or pf, "CENTER", 0, 0)
+	end
+	Layer(f, pf)
+	Try(f.Show, f)
+end
+
+---------------------------------------------------------------------------
+-- Watcher: our own frame polls the window, read-only, only while it is open
+---------------------------------------------------------------------------
+
+-- No hooks into Blizzard_Professions at all, as a precaution: nothing of ours runs inside Blizzard's profession code,
+-- so nothing of ours can change how it behaves.
+K.hooked = false
+local watcher, acc = nil, 0
+K.emptyFor = 0 -- seconds the crafting page has been shown with no profession loaded
+K.wasDead = false
+
+function K.HideAll()
+	K.HideNumbers(); K.HideNotice()
+	K.emptyFor, K.wasDead = 0, false
+end
+
+function K.Update(dt)
+	local pf, page, form = Window()
+	if not pf or not K.Enabled() or (page and not shown(page)) then return K.HideAll() end
+	-- Loaded first: the form keeps its last recipe after the window closes (Init only on a new recipe), so a recipe
+	-- in the form doesn't mean this open worked.
+	if not page or ProfessionLoaded() then
+		K.HideNotice(); K.emptyFor, K.wasDead = 0, false
+		local rid = Selected(form)
+		if rid then return K.ShowNumbers(rid, pf, form) end
+		return K.HideNumbers()
+	end
+	K.HideNumbers()
+	K.emptyFor = K.emptyFor + (dt or 0)
+	if K.emptyFor < K.GRACE then return end
+	local dead = Clean((Call("UnitIsDeadOrGhost", "player"))) and true or false
+	local kind = "failed"
+	if dead then kind = "dead"; K.wasDead = true
+	elseif K.wasDead then kind = "alive" end
+	K.ShowNotice(kind, pf, page)
+end
+
 function K.Tick(elapsed)
 	acc = acc + (elapsed or 0)
 	if acc < 0.25 then return end
+	local dt = acc
 	acc = 0
-	if not K.Enabled() or not craftingShown() then
-		lastRid = nil
-		return K.Hide()
-	end
-	local rid = Selected()
-	if rid ~= lastRid then
-		lastRid = rid
-		K.current = rid
-		pcall(K.Render)
-	end
+	K.Update(dt)
 end
+
 function K.Hook()
 	if K.hooked or not CreateFrame then return K.hooked end
 	watcher = CreateFrame("Frame")
 	watcher:SetScript("OnUpdate", function(_, e)
 		local pf = _G.ProfessionsFrame
-		if not (pf and pf:IsShown()) then
-			if panel and panel:IsShown() then pcall(K.Hide) end
-			lastRid = nil
+		if not (type(pf) == "table" and shown(pf)) then
+			if (box and box.rid) or (note and note.kind) then pcall(K.HideAll) end
+			acc = 0
 			return
 		end
 		pcall(K.Tick, e)
@@ -345,7 +445,10 @@ function K.Command(arg)
 	local db = FS.db or ForeverScribeDB
 	arg = tostring(arg or ""):lower()
 	if db and db.settings and (arg == "on" or arg == "off") then db.settings.craftprices = arg end
-	if K.Enabled() then pcall(K.Render) else K.Hide() end
+	if K.Enabled() then
+		if box then box.rid = nil end
+		pcall(K.Update, 0)
+	else K.HideAll() end
 	FS.Print("craft cost & profit in the profession window " .. (K.Enabled() and "on" or "off") .. ". /scribe craftprices on|off")
 	if K.Enabled() and not (T and T.Data and T.Data()) then
 		FS.Print("no prices loaded yet: your agent writes them with `foreverscribe prices write`; then /reload.")
@@ -357,15 +460,15 @@ if CreateFrame then
 	f:RegisterEvent("ADDON_LOADED")
 	f:RegisterEvent("PLAYER_LOGIN")
 	f:RegisterEvent("TRADE_SKILL_SHOW")
-	f:RegisterEvent("MODIFIER_STATE_CHANGED")
-	f:RegisterEvent("BAG_UPDATE_DELAYED")
+	f:RegisterEvent("TRADE_SKILL_CLOSE")
 	f:SetScript("OnEvent", function(_, ev, a1)
 		if ev == "ADDON_LOADED" then
 			if a1 == "Blizzard_Professions" then pcall(K.Hook) end
-		elseif ev == "PLAYER_LOGIN" or ev == "TRADE_SKILL_SHOW" then
+		elseif ev == "TRADE_SKILL_CLOSE" then
+			K.tradeOpen = false
+		else -- PLAYER_LOGIN, TRADE_SKILL_SHOW
+			if ev == "TRADE_SKILL_SHOW" then K.tradeOpen = true end
 			pcall(K.Hook)
-		elseif panel and Try(panel.IsShown, panel) then
-			if ev == "BAG_UPDATE_DELAYED" or a1 == "LSHIFT" or a1 == "RSHIFT" then pcall(K.Render) end
 		end
 	end)
 end
