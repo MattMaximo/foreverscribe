@@ -1315,7 +1315,7 @@ test("v8.2 selected recipe: cost, sells for, green profit with a small grey cut 
 	-- placed under Blizzard's reagent list, drawn just above the window, not parented to it
 	local pt = f.points[1]
 	eq(pt[1], "TOPLEFT"); eq(pt[2], ProfessionsFrame.CraftingPage.SchematicForm.Reagents); eq(pt[3], "BOTTOMLEFT")
-	eq(f.strata, "MEDIUM"); truthy(f.level > 10, "above the window")
+	eq(f.strata, "HIGH", "one strata above the MEDIUM window so its art cannot cover the numbers")
 	eq(GameTooltip.shown, false, "no tooltip panel any more")
 	eq(rawget(_G, "ForeverScribeCraftTip"), nil, "the 0.8.0/0.8.1 tooltip panel is gone")
 	eq(FS().errors or 0, 0, tostring(FS().lastError))

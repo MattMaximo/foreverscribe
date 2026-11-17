@@ -215,15 +215,16 @@ local function ProfessionLoaded()
 	return false
 end
 
--- Our frames: drawn just above the profession window (same strata, higher level), never parented to it.
+-- Our frames are never parented to Blizzard's. 0.8.2/0.8.3 used the window's own strata at its level+40, but the
+-- recipe pane's art (and the window raising itself when clicked) sits higher, so the numbers were drawn but hidden
+-- behind it. Draw one strata above the window instead (MEDIUM -> HIGH); the frames only exist while it is open.
+local STRATA_UP = { BACKGROUND = "LOW", LOW = "MEDIUM", MEDIUM = "HIGH", HIGH = "DIALOG", DIALOG = "FULLSCREEN",
+	FULLSCREEN = "FULLSCREEN_DIALOG", FULLSCREEN_DIALOG = "FULLSCREEN_DIALOG" }
 local function Layer(f, pf)
 	local strata = get(pf, "GetFrameStrata")
-	local level = tonumber(get(pf, "GetFrameLevel"))
-	if type(strata) == "string" and f.strata ~= strata then f.strata = strata; Try(f.SetFrameStrata, f, strata) end
-	if level then
-		level = math.min(level + 40, 9000)
-		if f.level ~= level then f.level = level; Try(f.SetFrameLevel, f, level) end
-	end
+	strata = type(strata) == "string" and STRATA_UP[strata] or "HIGH"
+	if f.strata ~= strata then f.strata = strata; Try(f.SetFrameStrata, f, strata) end
+	if f.level ~= 50 then f.level = 50; Try(f.SetFrameLevel, f, 50) end
 end
 
 local function FontString(f, font)
@@ -461,6 +462,10 @@ function K.Debug()
 		P(("craftdebug: box shown=%s mode=%s anchor=%s formBottom=%s anchorBottom=%s h=%s top=%s left=%s"):format(
 			tostring(shown(b)), tostring(b.mode), tostring(d.below), tostring(d.fb), tostring(d.ab), tostring(d.h),
 			tostring(get(b, "GetTop")), tostring(get(b, "GetLeft"))))
+		local r1 = b.rows and b.rows[1]
+		P(("craftdebug: strata=%s level=%s window=%s/%s alpha=%s text1=%s"):format(tostring(get(b, "GetFrameStrata")),
+			tostring(get(b, "GetFrameLevel")), tostring(get(pf, "GetFrameStrata")), tostring(get(pf, "GetFrameLevel")),
+			tostring(get(b, "GetEffectiveAlpha")), tostring(r1 and get(r1.label, "GetText"))))
 	else P("craftdebug: no numbers frame yet") end
 	P("craftdebug: errors " .. tostring(FS.errors or 0) .. " last: " .. tostring(FS.lastError))
 end
