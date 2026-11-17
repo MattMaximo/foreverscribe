@@ -295,28 +295,49 @@ function K.OnListEnter(row, data)
 	Try(tt.Show, tt)
 end
 
+-- No hooks into Blizzard_Professions at all. Forever's profession UI reads secret values that error when the
+-- execution path is tainted, and an insecure post-hook / EventRegistry callback taints that path (0.8.0 left the
+-- recipe list and schematic empty). Instead our own frame watches the window from outside, read-only, and
+-- only while it is open.
 K.hooked = false
-function K.Hook()
-	if K.hooked then return true end
+local watcher, lastRid, acc = nil, nil, 0
+local function Selected()
 	local pf = _G.ProfessionsFrame
 	local form = pf and pf.CraftingPage and pf.CraftingPage.SchematicForm
-	local hsf = Fn("hooksecurefunc")
-	if not (form and type(form.Init) == "function" and hsf) then return false end
-	if not pcall(hsf, form, "Init", function(_, info) pcall(K.OnInit, info) end) then return false end
+	if not (form and type(form.GetRecipeInfo) == "function") then return nil end
+	local ok, info = pcall(form.GetRecipeInfo, form)
+	if not ok or type(info) ~= "table" then return nil end
+	local rid = Clean(info.recipeID)
+	return tonumber(rid)
+end
+function K.Tick(elapsed)
+	acc = acc + (elapsed or 0)
+	if acc < 0.25 then return end
+	acc = 0
+	if not K.Enabled() or not craftingShown() then
+		lastRid = nil
+		return K.Hide()
+	end
+	local rid = Selected()
+	if rid ~= lastRid then
+		lastRid = rid
+		K.current = rid
+		pcall(K.Render)
+	end
+end
+function K.Hook()
+	if K.hooked or not CreateFrame then return K.hooked end
+	watcher = CreateFrame("Frame")
+	watcher:SetScript("OnUpdate", function(_, e)
+		local pf = _G.ProfessionsFrame
+		if not (pf and pf:IsShown()) then
+			if panel and panel:IsShown() then pcall(K.Hide) end
+			lastRid = nil
+			return
+		end
+		pcall(K.Tick, e)
+	end)
 	K.hooked = true
-	if pf.HookScript then Try(pf.HookScript, pf, "OnHide", function() pcall(K.Hide) end) end
-	local page = pf.CraftingPage
-	if page and page.HookScript then
-		Try(page.HookScript, page, "OnHide", function() pcall(K.Hide) end)
-		Try(page.HookScript, page, "OnShow", function() pcall(K.Render) end)
-	end
-	local reg = _G.EventRegistry
-	if type(reg) == "table" and type(reg.RegisterCallback) == "function" then
-		pcall(reg.RegisterCallback, reg, "Professions.RecipeListOnEnter", function(_, row, data) pcall(K.OnListEnter, row, data) end, K)
-	end
-	-- the form may already show a recipe (window opened before the hook)
-	local info = form.GetRecipeInfo and Try(form.GetRecipeInfo, form)
-	if type(info) == "table" then pcall(K.OnInit, info) end
 	return true
 end
 

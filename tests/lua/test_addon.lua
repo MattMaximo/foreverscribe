@@ -1369,20 +1369,26 @@ test("v8 a recipe the companion didn't precompute is read from the client's sche
 	truthy(has(l, "Profit | -1s 14c"), show(l)) -- 50 - 3 (5% cut of 50c, half up) - 161
 end)
 
-test("v8 hovering a recipe in the list adds a compact cost / profit block; off hides everything", function()
+test("v8 off hides the panel; hovering the list never touches Blizzard's tooltip path (no taint)", function()
 	W.CraftPrices(); W.Boot(); W.OpenProfessions()
-	W.HoverRecipe(7892)
-	local l = W.TipText(GameTooltip)
-	truthy(has(l, "Profit | +43s 85c"), show(l))
-	truthy(not has(l, "After the 5% AH cut · Hold Shift for materials"), "compact: no hint line")
+	W.HoverRecipe(7892); eq(#GameTooltip.lines, 0, "0.8.1: no EventRegistry callback into the profession list")
 	ForeverScribe.Slash("craftprices off")
 	eq(ForeverScribeDB.settings.craftprices, "off")
 	W.SelectRecipe(7892)
 	eq(W.PanelText(), nil, "panel hidden when off")
-	W.HoverRecipe(7892); eq(#GameTooltip.lines, 0, "no list block when off")
 	ForeverScribe.Slash("craftprices on"); W.SelectRecipe(7892)
 	truthy(W.PanelText(), "back on")
 	ProfessionsFrame:Hide(); eq(W.PanelText(), nil, "closing the window hides the panel")
+end)
+
+test("v8.1 no hooks into Blizzard_Professions (Forever secret values break on tainted paths)", function()
+	W.CraftPrices(); W.Boot(); W.OpenProfessions()
+	local form = ProfessionsFrame.CraftingPage.SchematicForm
+	eq(type(form.Init), "function")
+	local src = io.open(ROOT .. "addon/ForeverScribe/Craft.lua"):read("*a"):gsub("%-%-[^\n]*", "")
+	truthy(not src:find("hooksecurefunc", 1, true), "no hooksecurefunc")
+	truthy(not src:find("RegisterCallback", 1, true), "no EventRegistry callbacks")
+	truthy(not src:find("HookScript", 1, true), "no HookScript on Blizzard frames")
 end)
 
 test("v8 no price file: nothing shown, no errors; the window opened before login is hooked late", function()
@@ -1393,6 +1399,7 @@ test("v8 no price file: nothing shown, no errors; the window opened before login
 	dofile(ROOT .. "tests/lua/wow_stub.lua"); W.Reset(); W.ROOT = ROOT
 	W.CraftPrices(); W.OpenProfessions(); W.SelectRecipe(7892)
 	W.Boot(); W.Fire("TRADE_SKILL_SHOW")
+	W.TickUpdates(1)
 	truthy(has(panel(), "Profit | +43s 85c"), show(panel()))
 	eq(ForeverScribe.Craft.hooked, true)
 end)

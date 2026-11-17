@@ -1,6 +1,6 @@
 
 ForeverScribeDB = {
-	["addonVersion"] = "0.8.0",
+	["addonVersion"] = "0.8.1",
 	["chars"] = {
 		["Forever-Test:Pixelpop"] = {
 			["achievements"] = {
@@ -170,11 +170,11 @@ ForeverScribeDB = {
 						["map"] = 1432,
 						["zone"] = "Loch Modan",
 					},
-					["id"] = "1763250000-88d1-1:1",
+					["id"] = "1763250000-7f9c-1:1",
 					["payload"] = {
 						["level"] = 23,
 						["money"] = 123456,
-						["version"] = "0.8.0",
+						["version"] = "0.8.1",
 						["zone"] = "Loch Modan",
 					},
 					["schema"] = 1,
@@ -356,7 +356,7 @@ ForeverScribeDB = {
 			["sessions"] = {
 				{
 					["events"] = 1,
-					["id"] = "1763250000-88d1-1",
+					["id"] = "1763250000-7f9c-1",
 					["last"] = 1763250000,
 					["level"] = 23,
 					["money"] = 123456,
@@ -365,7 +365,7 @@ ForeverScribeDB = {
 				}, -- [1]
 			},
 			["snapshot"] = {
-				["addonVersion"] = "0.8.0",
+				["addonVersion"] = "0.8.1",
 				["bags"] = {
 					["free"] = 25,
 					["items"] = {
@@ -591,7 +591,7 @@ ForeverScribeDB = {
 				["questsCompletedAt"] = 1763250000,
 				["rested"] = 500,
 				["resting"] = false,
-				["session"] = "1763250000-88d1-1",
+				["session"] = "1763250000-7f9c-1",
 				["skills"] = {
 					{
 						["group"] = "Professions",

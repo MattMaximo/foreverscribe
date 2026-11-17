@@ -79,7 +79,10 @@ function FrameMT:RegisterEvent(ev)
 	self.events[ev] = true
 end
 function FrameMT:UnregisterEvent(ev) self.events[ev] = nil end
-function FrameMT:SetScript(name, fn) self.scripts[name] = fn end
+function FrameMT:SetScript(name, fn)
+	self.scripts[name] = fn
+	if name == "OnUpdate" and fn then W.updaters = W.updaters or {}; table.insert(W.updaters, self) end
+end
 function FrameMT:Show() self.shown = true end
 function FrameMT:Hide() self.shown = false end
 function FrameMT:IsShown() return self.shown end

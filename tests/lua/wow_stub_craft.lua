@@ -56,6 +56,7 @@ end
 function W.SelectRecipe(rid)
 	local r = W.trade and W.trade.recipes[rid]
 	ProfessionsFrame.CraftingPage.SchematicForm:Init({ recipeID = rid, name = r and r.name, learned = true })
+	W.TickUpdates(1)
 end
 
 function W.HoverRecipe(rid)
@@ -67,7 +68,15 @@ function W.HoverRecipe(rid)
 end
 
 -- Our panel's lines as plain text (coins as g/s/c, colour codes stripped)
+-- Run every frame's OnUpdate once (the craft panel watches the profession window from its own frame).
+function W.TickUpdates(e)
+	for _, f in ipairs(W.updaters or {}) do
+		if f.scripts and f.scripts.OnUpdate then f.scripts.OnUpdate(f, e or 1) end
+	end
+end
+
 function W.PanelText()
+	W.TickUpdates(1)
 	local t = _G.ForeverScribeCraftTip
 	if not t or not t.shown then return nil end
 	return W.TipText(t)
